@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from schemas.next_round import NextRoundRequest
 
 from schemas.negotiation import NegotiationRequest
 from backend.orchestrator import NegotiationOrchestrator
@@ -24,3 +25,11 @@ def health():
 @app.post("/start-negotiation")
 def start_negotiation(request: NegotiationRequest):
     return orchestrator.start(request)
+
+@app.post("/next-round")
+def next_round(request: NextRoundRequest):
+    return orchestrator.next_round(request)
+
+@app.get("/conversation/{session_id}")
+def get_conversation(session_id: str):
+    return orchestrator.conversation_manager.get_conversation(session_id)
