@@ -1,13 +1,14 @@
 from schemas.negotiation import NegotiationRequest
 from backend.session_manager import SessionManager
 from backend.conversation_manager import ConversationManager
-
+from backend.agreement_detector import AgreementDetector
 
 class NegotiationOrchestrator:
 
     def __init__(self):
         self.session_manager = SessionManager()
         self.conversation_manager = ConversationManager()
+        self.agreement_detector = AgreementDetector()
 
     def start(self, request: NegotiationRequest):
         session_id = self.session_manager.create_session()
@@ -28,6 +29,14 @@ class NegotiationOrchestrator:
             request.speaker,
             request.message
         )
+
+        if self.agreement_detector.is_agreement(request.message):
+            return {
+                "session_id": request.session_id,
+                "status": "agreement_reached",
+                "speaker": request.speaker,
+                "message": "Negotiation completed successfully."
+            }
 
         # Dummy AI response
         ai_reply = "Your offer is too low. I can reduce the price slightly."
