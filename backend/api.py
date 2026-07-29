@@ -33,3 +33,7 @@ def next_round(request: NextRoundRequest):
 @app.get("/conversation/{session_id}")
 def get_conversation(session_id: str):
     return orchestrator.conversation_manager.get_conversation(session_id)
+
+@app.get("/report/{session_id}")
+def get_report(session_id: str):
+    return orchestrator.generate_report(session_id)
