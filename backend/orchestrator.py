@@ -4,6 +4,7 @@ from backend.conversation_manager import ConversationManager
 from backend.agreement_detector import AgreementDetector
 from backend.deadlock_detector import DeadlockDetector
 from backend.report_generator import ReportGenerator
+from backend.ai_agent import generate_reply
 
 
 class NegotiationOrchestrator:
@@ -51,9 +52,15 @@ class NegotiationOrchestrator:
                 "message": "Negotiation ended without agreement."
             }
 
-        # Dummy AI response
-        ai_reply = "Your offer is too low. I can reduce the price slightly."
+        try:
+                 ai_reply = generate_reply(request.message)
+        except Exception as e:
+                print("AI Error:", e)
 
+                ai_reply = (
+                    "I'm unable to generate a response at the moment. "
+                     "Please continue the negotiation."
+                    )
         # Save the AI response
         self.conversation_manager.add_message(
             request.session_id,
