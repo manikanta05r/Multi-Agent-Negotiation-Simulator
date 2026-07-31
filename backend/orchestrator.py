@@ -29,22 +29,61 @@ class NegotiationOrchestrator:
         }
 
     def next_round(self, request):
-        # Save the user's message
+
+        # Save buyer message
         self.conversation_manager.add_message(
             request.session_id,
             request.speaker,
             request.message
         )
 
-        conversation = self.conversation_manager.get_conversation(request.session_id)
+        # Get conversation history
+        conversation = self.conversation_manager.get_conversation(
+            request.session_id
+        )
 
+        # Check agreement
         if self.agreement_detector.is_agreement(request.message):
+
+            final_prompt = conversation + [
+                {
+                    "speaker": "System",
+                    "message": (
+                        "The buyer has accepted the final offer. "
+                        "Generate a short professional closing message "
+                        "confirming the agreement. "
+                        "Do not continue negotiating."
+                    )
+                }
+            ]
+
+            try:
+                final_reply = generate_reply(final_prompt)
+
+            except Exception as e:
+                print("AI Error:", e)
+
+                final_reply = (
+                    "Thank you for the successful negotiation. "
+                    "We are pleased to confirm the agreement. "
+                    "We look forward to doing business with you."
+                )
+
+            # Save supplier closing message
+            self.conversation_manager.add_message(
+                request.session_id,
+                "Supplier",
+                final_reply
+            )
+
             return {
                 "session_id": request.session_id,
                 "status": "agreement_reached",
-                "speaker": request.speaker,
-                "message": "Negotiation completed successfully."
+                "speaker": "Supplier",
+                "message": final_reply
             }
+
+        # Check deadlock
         if self.deadlock_detector.is_deadlock(conversation):
             return {
                 "session_id": request.session_id,
@@ -52,16 +91,19 @@ class NegotiationOrchestrator:
                 "message": "Negotiation ended without agreement."
             }
 
+        # Normal AI response
         try:
-                 ai_reply = generate_reply(request.message)
-        except Exception as e:
-                print("AI Error:", e)
+            ai_reply = generate_reply(conversation)
 
-                ai_reply = (
-                    "I'm unable to generate a response at the moment. "
-                     "Please continue the negotiation."
-                    )
-        # Save the AI response
+        except Exception as e:
+            print("AI Error:", e)
+
+            ai_reply = (
+                "I'm unable to generate a response at the moment. "
+                "Please continue the negotiation."
+            )
+
+        # Save AI reply
         self.conversation_manager.add_message(
             request.session_id,
             "Supplier",
@@ -73,19 +115,20 @@ class NegotiationOrchestrator:
             "speaker": "Supplier",
             "message": ai_reply
         }
+
     def generate_report(self, session_id):
 
         conversation = self.conversation_manager.get_conversation(session_id)
 
         if not conversation:
             return {
-            "error": "Session not found"
-        }
+                "error": "Session not found"
+            }
 
         status = "completed"
 
         return self.report_generator.generate_report(
-                    session_id,
-                    conversation,
-                    status
-                    )
+            session_id,
+            conversation,
+            status
+        )
