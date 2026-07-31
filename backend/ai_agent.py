@@ -64,3 +64,49 @@ Supplier:
     )
 
     return response.choices[0].message.content
+
+def generate_summary(conversation, scenario, status):
+
+        conversation_text = ""
+
+        for message in conversation:
+            conversation_text += (
+                f"{message['speaker']}: {message['message']}\n"
+            )
+
+        prompt = f"""
+    You are an AI assistant.
+
+    Summarize the following completed negotiation.
+
+    Scenario:
+    {scenario}
+
+    Outcome:
+    {status}
+
+    Conversation:
+
+    {conversation_text}
+
+Provide:
+
+    1. A 3-5 sentence summary.
+    2. Mention only facts present in the conversation.
+    3. Do not invent offers, prices, products, or conditions.
+    4. If something was not discussed, do not mention it.
+    """
+
+        response = client.chat.completions.create(
+            model="llama-3.1-8b-instant",
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            temperature=0.5,
+            max_tokens=200
+        )
+
+        return response.choices[0].message.content

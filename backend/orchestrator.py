@@ -65,6 +65,13 @@ class NegotiationOrchestrator:
         # Stop if maximum rounds exceeded
         if current_round > max_rounds:
 
+            self.session_manager.update_status(
+                request.session_id,
+                "max_rounds_reached"
+            )
+
+
+
             # Save final system message
             self.conversation_manager.add_message(
                 request.session_id,
@@ -123,6 +130,11 @@ class NegotiationOrchestrator:
                 final_reply
             )
 
+            self.session_manager.update_status(
+                request.session_id,
+                "agreement_reached"
+            )
+
             return {
                 "session_id": request.session_id,
                 "status": "agreement_reached",
@@ -132,6 +144,12 @@ class NegotiationOrchestrator:
 
         # Check deadlock
         if self.deadlock_detector.is_deadlock(conversation):
+
+            self.session_manager.update_status(
+                request.session_id,
+                "deadlock"
+            )
+
             return {
                 "session_id": request.session_id,
                 "status": "deadlock",
@@ -176,10 +194,19 @@ class NegotiationOrchestrator:
                 "error": "Session not found"
             }
 
-        status = "completed"
+        session = self.session_manager.get_session(session_id)
+
+        if session is None:
+            return {
+                "error": "Session not found"
+            }
+
+        scenario = session["scenario"]
+        status = session.get("status", "completed")
 
         return self.report_generator.generate_report(
             session_id,
             conversation,
-            status
+            status,
+            scenario
         )
