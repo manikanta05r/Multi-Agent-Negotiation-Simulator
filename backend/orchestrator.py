@@ -17,7 +17,11 @@ class NegotiationOrchestrator:
         self.report_generator = ReportGenerator()
 
     def start(self, request: NegotiationRequest):
-        session_id = self.session_manager.create_session()
+        session_id = self.session_manager.create_session(
+            request.scenario,
+            request.mode,
+            request.max_rounds
+        )
 
         # Create an empty conversation for this session
         self.conversation_manager.create_conversation(session_id)
@@ -41,6 +45,45 @@ class NegotiationOrchestrator:
         conversation = self.conversation_manager.get_conversation(
             request.session_id
         )
+        # Get session details
+        session = self.session_manager.get_session(request.session_id)
+        if session is None:
+            return {
+                "error": "Invalid session ID"
+            }
+
+        scenario = session["scenario"]
+        mode = session["mode"]
+        max_rounds = session["max_rounds"]
+
+       # Count buyer messages (each buyer message = one round)
+        current_round = sum(
+            1 for message in conversation
+            if message["speaker"].lower() == "buyer"
+        )
+
+        # Stop if maximum rounds exceeded
+        if current_round > max_rounds:
+
+            # Save final system message
+            self.conversation_manager.add_message(
+                request.session_id,
+                "System",
+                f"Negotiation ended after reaching the maximum of {max_rounds} rounds."
+            )
+
+            return {
+                "session_id": request.session_id,
+                "status": "max_rounds_reached",
+                "scenario": scenario,
+                "rounds_completed": current_round,
+                "max_rounds": max_rounds,
+                "speaker": "System",
+                "message": (
+                    f"The maximum of {max_rounds} negotiation rounds has been reached. "
+                    "The negotiation has ended without an agreement."
+                )
+            }
 
         # Check agreement
         if self.agreement_detector.is_agreement(request.message):
@@ -58,7 +101,11 @@ class NegotiationOrchestrator:
             ]
 
             try:
-                final_reply = generate_reply(final_prompt)
+                final_reply = generate_reply(
+                        final_prompt,
+                        scenario,
+                        mode
+                    )
 
             except Exception as e:
                 print("AI Error:", e)
@@ -93,7 +140,11 @@ class NegotiationOrchestrator:
 
         # Normal AI response
         try:
-            ai_reply = generate_reply(conversation)
+            ai_reply = generate_reply(
+                    conversation,
+                    scenario,
+                    mode
+                )
 
         except Exception as e:
             print("AI Error:", e)

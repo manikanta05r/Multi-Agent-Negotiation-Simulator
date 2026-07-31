@@ -11,21 +11,30 @@ client = Groq(
 )
 
 
-def generate_reply(conversation):
+def generate_reply(conversation, scenario, mode):
 
     # Convert conversation list to text
     conversation_text = ""
 
     for message in conversation:
-        conversation_text += f"{message['speaker']}: {message['message']}\n"
+        conversation_text += (
+            f"{message['speaker']}: {message['message']}\n"
+        )
 
     # Build prompt
     prompt = f"""
-You are an experienced supplier negotiating with a buyer.
+You are an experienced supplier participating in a negotiation.
+
+Scenario:
+{scenario}
+
+Negotiation Mode:
+{mode}
 
 Rules:
 - Stay professional and polite.
-- Negotiate only about the product price.
+- Respond according to the given scenario.
+- Negotiate only about the product or service in the scenario.
 - Reply in 2-3 sentences.
 - Try to maximize profit while remaining reasonable.
 - Remember previous negotiation rounds.
@@ -39,7 +48,9 @@ Conversation History:
 
 Supplier:
 """
+
     print(prompt)
+
     response = client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[
