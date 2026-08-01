@@ -1,4 +1,5 @@
 import streamlit as st
+import requests
 
 from components.styles import load_css
 from components.navbar import show_navbar
@@ -16,10 +17,11 @@ show_navbar()
 # Session State
 # ==========================================
 
-mode = st.session_state.get("mode", "Simulation")
+mode = st.session_state.get("mode", "AI vs AI")
 role = st.session_state.get("role", None)
 scenario = st.session_state.get("scenario", "Buyer vs Supplier")
 max_rounds = st.session_state.get("max_rounds", 10)
+session_id = st.session_state.get("session_id", "")
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -34,7 +36,7 @@ st.write(f"### Scenario: {scenario}")
 
 st.divider()
 
-chat_col, status_col = st.columns([3,1])
+chat_col, status_col = st.columns([3, 1])
 
 # ==========================================
 # Chat Section
@@ -44,70 +46,26 @@ with chat_col:
 
     st.subheader("🗨️ Negotiation Conversation")
 
-    # ==========================
-    # Simulation Mode
-    # ==========================
+    # =====================================
+    # AI vs AI
+    # =====================================
 
-    if mode == "Simulation":
+    if mode == "AI vs AI":
 
-        st.info("🤖 AI Buyer and AI Seller are negotiating automatically.")
+        st.info("🤖 AI vs AI mode will be integrated later.")
 
-        if st.button("▶ Start AI Negotiation", width="stretch"):
-
-            st.session_state.messages = [
-
-                ("Buyer AI", "We would like to purchase 500 units at $18 per unit."),
-
-                ("Seller AI", "Our minimum acceptable price is $22 per unit."),
-
-                ("Buyer AI", "We can increase our offer to $20 if delivery is within 10 days."),
-
-                ("Seller AI", "Deal accepted. Delivery will be completed within 10 days.")
-            ]
-
-        for sender, message in st.session_state.messages:
-
-            if sender == "Buyer AI":
-
-                with st.chat_message("assistant"):
-                    st.write(f"🤖 **{sender}:** {message}")
-
-            else:
-
-                with st.chat_message("user"):
-                    st.write(f"🏭 **{sender}:** {message}")
-
-        if len(st.session_state.messages) > 0:
-
-            st.success("✅ Negotiation Completed Successfully")
-
-    # ==========================
-    # Practice Mode
-    # ==========================
+    # =====================================
+    # Human vs AI
+    # =====================================
 
     else:
 
         st.info(f"🎮 Practice Mode | Your Role: **{role}**")
 
-        if len(st.session_state.messages) == 0:
-
-            if role == "Buyer":
-
-                st.session_state.messages.append(
-                    ("AI Seller",
-                     "Welcome! Our initial quotation is $25 per unit.")
-                )
-
-            else:
-
-                st.session_state.messages.append(
-                    ("AI Buyer",
-                     "Hello! We are ready to purchase at $18 per unit.")
-                )
-
+        # Show conversation
         for sender, message in st.session_state.messages:
 
-            if sender.startswith("AI"):
+            if sender in ["AI", "Supplier"]:
 
                 with st.chat_message("assistant"):
                     st.write(f"🤖 **{sender}:** {message}")
@@ -115,30 +73,77 @@ with chat_col:
             else:
 
                 with st.chat_message("user"):
-                    st.write(f"🧑 **You:** {message}")
+                    st.write(f"🧑 **{sender}:** {message}")
 
+        # Chat input
         user_offer = st.chat_input("Enter your offer...")
 
         if user_offer:
 
+            # Show user message
             st.session_state.messages.append(
-                ("You", user_offer)
+                (role, user_offer)
             )
 
-            # Temporary AI reply
-            if role == "Buyer":
+            try:
 
-                ai_reply = "Our revised offer is $23 per unit. Can you increase your price?"
+                response = requests.post(
 
-            else:
+                    "http://127.0.0.1:8000/next-round",
 
-                ai_reply = "We can increase our offer to $19 per unit. Please consider."
+                    json={
 
-            st.session_state.messages.append(
-                ("AI", ai_reply)
-            )
+                        "session_id": session_id,
+
+                        "speaker": role,
+
+                        "message": user_offer
+
+                    }
+
+                )
+
+                if response.status_code == 200:
+
+                    data = response.json()
+
+                    # Add AI reply
+                    st.session_state.messages.append(
+
+                        (
+
+                            data.get("speaker", "Supplier"),
+
+                            data.get("message", "")
+
+                        )
+
+                    )
+
+                    # Check negotiation status
+                    if "status" in data:
+
+                        status = data["status"]
+
+                        if status == "agreement_reached":
+                            st.success("✅ Agreement Reached")
+
+                        elif status == "deadlock":
+                            st.warning("⚠ Negotiation ended due to Deadlock")
+
+                        elif status == "max_rounds_reached":
+                            st.warning("⚠ Maximum Rounds Reached")
+
+                else:
+
+                    st.error(response.text)
+
+            except Exception as e:
+
+                st.error(f"Backend Connection Error\n\n{e}")
 
             st.rerun()
+
 # ==========================================
 # Status Panel
 # ==========================================
@@ -154,88 +159,57 @@ with status_col:
 
     st.metric("Scenario", scenario)
 
-    st.metric("Rounds", f"{len(st.session_state.messages)}/{max_rounds}")
+    rounds = sum(
+        1
+        for sender, _ in st.session_state.messages
+        if sender == role
+    )
 
-    progress = min(len(st.session_state.messages) / max_rounds, 1.0)
+    st.metric("Rounds", f"{rounds}/{max_rounds}")
+
+    progress = min(rounds / max_rounds, 1.0)
+
     st.progress(progress)
 
-    if mode == "Simulation":
+    if len(st.session_state.messages) == 0:
 
-        if len(st.session_state.messages) == 0:
-            st.warning("Waiting to start...")
-
-        elif len(st.session_state.messages) < 4:
-            st.info("Negotiation in Progress")
-
-        else:
-            st.success("Agreement Reached")
+        st.info("Waiting to start")
 
     else:
 
-        if len(st.session_state.messages) == 1:
-            st.info("Waiting for your response")
-
-        else:
-            st.success("Negotiation Active")
+        st.success("Negotiation Active")
 
 st.divider()
 
 # ==========================================
-# Agreement Summary
+# Summary
 # ==========================================
 
 st.subheader("📄 Negotiation Summary")
 
-if mode == "Simulation":
-
-    if len(st.session_state.messages) >= 4:
-
-        st.success(f"""
-### Agreement Reached
+st.info(f"""
+### Current Negotiation
 
 **Scenario:** {scenario}
 
-**Negotiation Mode:** {mode}
-
-**Result:** Successful Agreement
-
-**Final Offer:** $20 per unit
-
-**Status:** Completed
-""")
-
-    else:
-
-        st.info("Negotiation has not completed yet.")
-
-else:
-
-    st.info(f"""
-### Practice Session
-
-**Scenario:** {scenario}
-
-**Mode:** Practice
+**Mode:** {mode}
 
 **Role:** {role}
 
-Continue negotiating with the AI agent until an agreement is reached.
+Continue negotiating until an agreement or deadlock is reached.
 """)
 
 st.divider()
 
 # ==========================================
-# Navigation Buttons
+# Navigation
 # ==========================================
 
 col1, col2, col3 = st.columns(3)
 
 with col1:
 
-    if st.button(
-        "🔄 Restart Negotiation",
-        width="stretch"
-    ):
+    if st.button("🔄 Restart Negotiation", use_container_width=True):
 
         st.session_state.messages = []
 
@@ -243,19 +217,13 @@ with col1:
 
 with col2:
 
-    if st.button(
-        "📊 View Reports",
-        width="stretch"
-    ):
+    if st.button("📊 View Reports", use_container_width=True):
 
         st.switch_page("pages/Reports.py")
 
 with col3:
 
-    if st.button(
-        "🏠 Back to Home",
-        width="stretch"
-    ):
+    if st.button("🏠 Back to Home", use_container_width=True):
 
         st.session_state.messages = []
         st.session_state.mode = None

@@ -1,4 +1,5 @@
 import streamlit as st
+import requests
 
 from components.styles import load_css
 from components.navbar import show_navbar
@@ -222,10 +223,56 @@ if st.button(
 
     else:
 
-        st.session_state.scenario = scenario
-        st.session_state.max_rounds = max_rounds
-        st.session_state.agreement = agreement
-        st.session_state.response_time = response_time
-        st.session_state.logging = logging
+        # Backend accepts only these values
+        backend_mode = (
+            "AI vs AI"
+            if st.session_state.mode == "Simulation"
+            else "Human vs AI"
+        )
 
-        st.switch_page("pages/Live_Negotiation.py")
+        # Remove emojis before sending
+        backend_scenario = (
+            scenario.replace("🛒 ", "")
+                    .replace("💼 ", "")
+                    .replace("💰 ", "")
+                    .replace("⚙️ ", "")
+        )
+
+        payload = {
+            "scenario": backend_scenario,
+            "mode": backend_mode,
+            "max_rounds": max_rounds
+        }
+
+        try:
+
+            response = requests.post(
+                "http://127.0.0.1:8000/start-negotiation",
+                json=payload
+            )
+
+            if response.status_code == 200:
+
+                data = response.json()
+
+                # Save everything for next pages
+                st.session_state.session_id = data["session_id"]
+                st.session_state.mode = backend_mode
+                st.session_state.role = st.session_state.role
+                st.session_state.scenario = backend_scenario
+                st.session_state.max_rounds = max_rounds
+                st.session_state.agreement = agreement
+                st.session_state.response_time = response_time
+                st.session_state.logging = logging
+
+                st.success(data["message"])
+
+                st.switch_page("pages/Live_Negotiation.py")
+
+            else:
+
+                st.error(f"Backend Error: {response.text}")
+
+        except Exception as e:
+
+            st.error(f"Unable to connect to backend.\n\n{e}")
