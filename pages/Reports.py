@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import requests
 
 from components.styles import load_css
 from components.navbar import show_navbar
@@ -17,6 +18,26 @@ show_navbar()
 # Header
 # ==========================================
 
+session_id = st.session_state.get("session_id")
+
+if not session_id:
+    st.warning("No negotiation report available. Please complete a negotiation first.")
+    st.stop()
+try:
+    response = requests.get(
+        f"http://127.0.0.1:8000/report/{session_id}"
+    )
+
+    report = response.json()
+
+    if "error" in report:
+        st.error(report["error"])
+        st.stop()
+
+except Exception as e:
+    st.error(f"Backend Error: {e}")
+    st.stop()
+
 st.title("📊 Negotiation Reports & Analytics")
 
 st.markdown("""
@@ -26,6 +47,7 @@ and export negotiation reports.
 
 st.divider()
 
+
 # ==========================================
 # KPI Metrics
 # ==========================================
@@ -34,18 +56,33 @@ st.subheader("📈 Overall Performance")
 
 col1, col2, col3, col4 = st.columns(4)
 
-with col1:
-    st.metric("Total Negotiations", "128", "+12")
+if report:
 
-with col2:
-    st.metric("Successful Agreements", "102", "+8")
+    with col1:
+        st.metric("Scenario", report["scenario"])
 
-with col3:
-    st.metric("Success Rate", "79.6%", "+2.1%")
+    with col2:
+        st.metric("Status", report["status"])
 
-with col4:
-    st.metric("Average Rounds", "6.2", "-0.3")
+    with col3:
+        st.metric("Rounds", report["total_rounds"])
 
+    with col4:
+        st.metric("Participants", len(report["participants"]))
+
+else:
+
+    with col1:
+        st.metric("Scenario", "-")
+
+    with col2:
+        st.metric("Status", "-")
+
+    with col3:
+        st.metric("Rounds", "-")
+
+    with col4:
+        st.metric("Participants", "-")
 st.divider()
 
 # ==========================================
@@ -95,41 +132,20 @@ st.divider()
 
 st.subheader("📋 Negotiation History")
 
-history = pd.DataFrame({
+if report:
 
-    "Scenario":[
-        "Buyer vs Supplier",
-        "HR vs Candidate",
-        "Budget Allocation",
-        "Buyer vs Supplier",
-        "Custom"
-    ],
+    history = pd.DataFrame([
+        {
+            "Scenario": report["scenario"],
+            "Rounds": report["total_rounds"],
+            "Status": report["status"],
+            "Participants": ", ".join(report["participants"])
+        }
+    ])
 
-    "Rounds":[
-        5,
-        8,
-        6,
-        7,
-        9
-    ],
+else:
 
-    "Result":[
-        "Agreement",
-        "Agreement",
-        "Failed",
-        "Agreement",
-        "Agreement"
-    ],
-
-    "Final Offer":[
-        "$20",
-        "$65K",
-        "$180K",
-        "$18",
-        "$250"
-    ]
-
-})
+    history = pd.DataFrame()
 
 st.dataframe(
     history,
@@ -144,17 +160,13 @@ st.divider()
 
 st.subheader("📄 Report Summary")
 
-st.success("""
-### Key Insights
+if report:
 
-✅ High overall agreement rate
+    st.success(report["summary"])
 
-✅ Buyer vs Supplier is the most common scenario
+else:
 
-✅ Average negotiation completes within 6 rounds
-
-✅ AI agents consistently reach mutually beneficial agreements
-""")
+    st.warning("No report available.")
 
 st.divider()
 
