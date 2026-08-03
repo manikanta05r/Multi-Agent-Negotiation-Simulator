@@ -1,44 +1,32 @@
-import re
+from llm.gemini_client import generate_response
+from llm.prompt_builder import build_prompt
+from llm.response_parser import parse_response
 
 
-def parse_response(response):
-    """
-    Parse Gemini's response into structured data.
-    """
+class SupplierAgent:
 
-    result = {
-        "message": response.strip(),
-        "offer": None,
-        "decision": "counter_offer",
-        "agreement": False
-    }
+    def __init__(self):
+        self.role = "Supplier"
 
-    # Find all numbers, including numbers with commas
-    matches = re.findall(r"\b\d[\d,]*\b", response)
+        self.goal = (
+            "Sell the product at the highest possible price while reaching a successful deal."
+        )
 
-    if matches:
-        numbers = [int(number.replace(",", "")) for number in matches]
+        self.constraints = (
+            "Do not accept an offer below the minimum acceptable price. "
+            "Be polite and professional. "
+            "Always try to negotiate a better price."
+        )
 
-        # Use the last number as the proposed offer
-        result["offer"] = numbers[-1]
+    def negotiate(self, conversation_history):
 
-    text = response.lower()
+        prompt = build_prompt(
+            role=self.role,
+            goal=self.goal,
+            constraints=self.constraints,
+            conversation_history=conversation_history
+        )
 
-    # Detect explicit acceptance
-    if (
-        "i accept" in text
-        or "i agree" in text
-        or "offer accepted" in text
-        or "accepted your offer" in text
-        or "we have a deal" in text
-    ):
-        result["agreement"] = True
-        result["decision"] = "accept"
+        response = generate_response(prompt)
 
-    elif "reject" in text or "cannot accept" in text:
-        result["decision"] = "reject"
-
-    else:
-        result["decision"] = "counter_offer"
-
-    return result
+        return parse_response(response)
