@@ -106,21 +106,12 @@ st.divider()
 st.subheader("📋 Step 2 : Select Scenario")
 
 scenario = st.selectbox(
-
     "Negotiation Scenario",
-
     [
-
-        "🛒 Buyer vs Supplier",
-
-        "💼 HR vs Candidate",
-
-        "💰 Budget Allocation",
-
-        "⚙️ Custom Scenario"
-
+        "Vendor Pricing Negotiation",
+        "Job Offer Negotiation",
+        "Project Budget Allocation"
     ]
-
 )
 
 st.divider()

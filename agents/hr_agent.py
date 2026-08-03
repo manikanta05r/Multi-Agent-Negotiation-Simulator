@@ -17,12 +17,13 @@ class HRAgent:
             "Be professional and respectful."
         )
 
-    def negotiate(self, conversation_history):
+    def negotiate(self, conversation_history,scenario):
 
         prompt = build_prompt(
             role=self.role,
             goal=self.goal,
             constraints=self.constraints,
+            scenario=scenario,
             conversation_history=conversation_history
         )
 

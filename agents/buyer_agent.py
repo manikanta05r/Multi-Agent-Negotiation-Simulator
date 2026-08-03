@@ -18,12 +18,13 @@ class BuyerAgent:
             "Always try to negotiate a lower price."
         )
 
-    def negotiate(self, conversation_history):
+    def negotiate(self, conversation_history,scenario):
 
         prompt = build_prompt(
             role=self.role,
             goal=self.goal,
             constraints=self.constraints,
+            scenario=scenario,
             conversation_history=conversation_history
         )
 
