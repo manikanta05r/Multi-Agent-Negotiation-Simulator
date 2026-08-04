@@ -4,7 +4,10 @@ from backend.conversation_manager import ConversationManager
 from backend.agreement_detector import AgreementDetector
 from backend.deadlock_detector import DeadlockDetector
 from backend.report_generator import ReportGenerator
-from backend.ai_agent import generate_reply
+from agents.supplier_agent import SupplierAgent
+from agents.hr_agent import HRAgent
+from agents.budget_agent import BudgetAgent
+
 
 
 class NegotiationOrchestrator:
@@ -15,6 +18,10 @@ class NegotiationOrchestrator:
         self.agreement_detector = AgreementDetector()
         self.deadlock_detector = DeadlockDetector()
         self.report_generator = ReportGenerator()
+        self.supplier_agent = SupplierAgent()
+        self.hr_agent = HRAgent()
+        self.budget_agent = BudgetAgent()
+
 
     def start(self, request: NegotiationRequest):
         session_id = self.session_manager.create_session(
@@ -108,11 +115,11 @@ class NegotiationOrchestrator:
             ]
 
             try:
-                final_reply = generate_reply(
-                        final_prompt,
-                        scenario,
-                        mode
-                    )
+                final_reply = (
+                    "Thank you for the successful negotiation. "
+                    "We are pleased to confirm our agreement. "
+                    "We look forward to working with you."
+                )
 
             except Exception as e:
                 print("AI Error:", e)
@@ -158,11 +165,30 @@ class NegotiationOrchestrator:
 
         # Normal AI response
         try:
-            ai_reply = generate_reply(
+
+            if scenario == "Vendor Pricing Negotiation":
+                ai_response = self.supplier_agent.negotiate(
                     conversation,
-                    scenario,
-                    mode
+                    scenario
                 )
+
+            elif scenario == "Job Offer Negotiation":
+                ai_response = self.hr_agent.negotiate(
+                    conversation,
+                    scenario
+                )
+
+            elif scenario == "Project Budget Allocation":
+                    ai_response = self.budget_agent.negotiate(
+                        conversation,
+                        scenario
+                    )
+
+            else:
+                raise ValueError(f"Unsupported scenario: {scenario}")
+
+            ai_reply = ai_response["message"]
+
 
         except Exception as e:
             print("AI Error:", e)

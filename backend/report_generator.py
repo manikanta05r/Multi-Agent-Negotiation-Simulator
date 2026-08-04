@@ -1,4 +1,4 @@
-from backend.ai_agent import generate_summary
+from llm.summary_generator import generate_summary
 
 
 class ReportGenerator:
