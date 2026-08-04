@@ -45,7 +45,7 @@ def parse_response(response):
         "not acceptable",
         "cannot approve",
         "can't approve",
-        "not approved"
+        "not approved",
         "i decline",
         "decline the",
         "declined",
