@@ -4,9 +4,11 @@ from backend.conversation_manager import ConversationManager
 from backend.agreement_detector import AgreementDetector
 from backend.deadlock_detector import DeadlockDetector
 from backend.report_generator import ReportGenerator
+
 from agents.supplier_agent import SupplierAgent
 from agents.hr_agent import HRAgent
 from agents.budget_agent import BudgetAgent
+from agents.department_representative_agent import DepartmentRepresentativeAgent
 
 
 class NegotiationOrchestrator:
@@ -17,11 +19,14 @@ class NegotiationOrchestrator:
         self.agreement_detector = AgreementDetector()
         self.deadlock_detector = DeadlockDetector()
         self.report_generator = ReportGenerator()
+
         self.supplier_agent = SupplierAgent()
         self.hr_agent = HRAgent()
         self.budget_agent = BudgetAgent()
+        self.department_representative_agent = DepartmentRepresentativeAgent()
 
     def start(self, request: NegotiationRequest):
+
         session_id = self.session_manager.create_session(
             request.scenario,
             request.mode,
@@ -34,12 +39,15 @@ class NegotiationOrchestrator:
         return {
             "session_id": session_id,
             "status": "success",
-            "message": f"Negotiation started for '{request.scenario}' in {request.mode} mode."
+            "message": (
+                f"Negotiation started for "
+                f"'{request.scenario}' in {request.mode} mode."
+            )
         }
 
     def next_round(self, request):
 
-        # Save buyer message
+        # Save user's message
         self.conversation_manager.add_message(
             request.session_id,
             request.speaker,
@@ -50,8 +58,12 @@ class NegotiationOrchestrator:
         conversation = self.conversation_manager.get_conversation(
             request.session_id
         )
+
         # Get session details
-        session = self.session_manager.get_session(request.session_id)
+        session = self.session_manager.get_session(
+            request.session_id
+        )
+
         if session is None:
             return {
                 "error": "Invalid session ID"
@@ -61,10 +73,19 @@ class NegotiationOrchestrator:
         mode = session["mode"]
         max_rounds = session["max_rounds"]
 
-       # Count buyer messages (each buyer message = one round)
+        # Count user rounds
         current_round = sum(
-            1 for message in conversation
-            if message["speaker"].lower() == "buyer"
+            1
+            for message in conversation
+            if message["speaker"].lower() in [
+                "buyer",
+                "supplier",
+                "budget manager",
+                "department representative",
+                "candidate",
+                "hr manager",
+                "you"
+            ]
         )
 
         # Stop if maximum rounds exceeded
@@ -75,13 +96,13 @@ class NegotiationOrchestrator:
                 "max_rounds_reached"
             )
 
-
-
-            # Save final system message
             self.conversation_manager.add_message(
                 request.session_id,
                 "System",
-                f"Negotiation ended after reaching the maximum of {max_rounds} rounds."
+                (
+                    f"Negotiation ended after reaching "
+                    f"the maximum of {max_rounds} rounds."
+                )
             )
 
             return {
@@ -92,7 +113,8 @@ class NegotiationOrchestrator:
                 "max_rounds": max_rounds,
                 "speaker": "System",
                 "message": (
-                    f"The maximum of {max_rounds} negotiation rounds has been reached. "
+                    f"The maximum of {max_rounds} negotiation rounds "
+                    "has been reached. "
                     "The negotiation has ended without an agreement."
                 )
             }
@@ -100,38 +122,15 @@ class NegotiationOrchestrator:
         # Check agreement
         if self.agreement_detector.is_agreement(request.message):
 
-            final_prompt = conversation + [
-                {
-                    "speaker": "System",
-                    "message": (
-                        "The buyer has accepted the final offer. "
-                        "Generate a short professional closing message "
-                        "confirming the agreement. "
-                        "Do not continue negotiating."
-                    )
-                }
-            ]
+            final_reply = (
+                "Thank you for the successful negotiation. "
+                "We are pleased to confirm our agreement. "
+                "We look forward to working with you."
+            )
 
-            try:
-                final_reply = (
-                    "Thank you for the successful negotiation. "
-                    "We are pleased to confirm our agreement. "
-                    "We look forward to working with you."
-                )
-
-            except Exception as e:
-                print("AI Error:", e)
-
-                final_reply = (
-                    "Thank you for the successful negotiation. "
-                    "We are pleased to confirm the agreement. "
-                    "We look forward to doing business with you."
-                )
-
-            # Save supplier closing message
             self.conversation_manager.add_message(
                 request.session_id,
-                "Supplier",
+                "AI",
                 final_reply
             )
 
@@ -143,7 +142,7 @@ class NegotiationOrchestrator:
             return {
                 "session_id": request.session_id,
                 "status": "agreement_reached",
-                "speaker": "Supplier",
+                "speaker": "AI",
                 "message": final_reply
             }
 
@@ -161,33 +160,63 @@ class NegotiationOrchestrator:
                 "message": "Negotiation ended without agreement."
             }
 
-        # Normal AI response
+        # ==========================================
+        # Normal AI Response
+        # ==========================================
+
         try:
 
             if scenario == "Vendor Pricing Negotiation":
+
                 ai_response = self.supplier_agent.negotiate(
                     conversation,
                     scenario
                 )
 
             elif scenario == "Job Offer Negotiation":
+
                 ai_response = self.hr_agent.negotiate(
                     conversation,
                     scenario
                 )
 
             elif scenario == "Project Budget Allocation":
+
+                # For now, determine the AI agent from the
+                # speaker/role information.
+
+                if request.speaker.lower() == "budget manager":
+
+                    # Human = Budget Manager
+                    # AI = Department Representative
+
+                    ai_response = (
+                        self.department_representative_agent.negotiate(
+                            conversation,
+                            scenario
+                        )
+                    )
+
+                else:
+
+                    # Human = Department Representative
+                    # AI = Budget Manager
+
                     ai_response = self.budget_agent.negotiate(
                         conversation,
                         scenario
                     )
 
             else:
-                raise ValueError(f"Unsupported scenario: {scenario}")
+
+                raise ValueError(
+                    f"Unsupported scenario: {scenario}"
+                )
 
             ai_reply = ai_response["message"]
 
         except Exception as e:
+
             print("AI Error:", e)
 
             ai_reply = (
@@ -198,26 +227,31 @@ class NegotiationOrchestrator:
         # Save AI reply
         self.conversation_manager.add_message(
             request.session_id,
-            "Supplier",
+            "AI",
             ai_reply
         )
 
         return {
             "session_id": request.session_id,
-            "speaker": "Supplier",
+            "status": "in_progress",
+            "speaker": "AI",
             "message": ai_reply
         }
 
     def generate_report(self, session_id):
 
-        conversation = self.conversation_manager.get_conversation(session_id)
+        conversation = self.conversation_manager.get_conversation(
+            session_id
+        )
 
         if not conversation:
             return {
                 "error": "Session not found"
             }
 
-        session = self.session_manager.get_session(session_id)
+        session = self.session_manager.get_session(
+            session_id
+        )
 
         if session is None:
             return {
@@ -225,7 +259,10 @@ class NegotiationOrchestrator:
             }
 
         scenario = session["scenario"]
-        status = session.get("status", "completed")
+        status = session.get(
+            "status",
+            "completed"
+        )
 
         return self.report_generator.generate_report(
             session_id,
