@@ -9,12 +9,16 @@ class CandidateAgent:
         self.role = "Candidate"
 
         self.goal = (
-            "Secure the best possible salary and benefits while remaining professional."
+            "Secure the best possible salary while remaining professional and reaching a mutually acceptable agreement."
         )
 
         self.constraints = (
-            "Do not accept an offer below your expected salary. "
-            "Be polite and professional."
+            "Negotiate professionally to obtain the best possible salary and benefits. "
+            "Do not accept the first offer immediately unless it already meets your expectations. "
+            "Make reasonable counteroffers during the negotiation. "
+            "If the employer reaches a fair final offer close to your latest expectation, accept the offer. "
+            "Do not repeat the same counteroffer multiple times. "
+            "Do not introduce new topics that were not already discussed."
         )
 
     def negotiate(self, conversation_history,scenario):

@@ -13,11 +13,13 @@ class BuyerAgent:
         )
 
         self.constraints = (
-            "Never exceed the budget. "
-            "Be polite. "
-            "Always try to negotiate a lower price."
+            "Stay within the available budget. "
+            "Negotiate politely for a better price. "
+            "Make reasonable counteroffers. "
+            "If the supplier reaches a fair final price within your acceptable budget, accept the offer. "
+            "Do not repeat the same counteroffer multiple times. "
+            "Do not introduce unrelated topics."
         )
-
     def negotiate(self, conversation_history,scenario):
 
         prompt = build_prompt(

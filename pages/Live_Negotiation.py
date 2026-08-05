@@ -65,7 +65,9 @@ with chat_col:
         # Show conversation
         for sender, message in st.session_state.messages:
 
-            if sender in ["AI", "Supplier"]:
+            ai_roles = ["Supplier","Buyer", "HR Manager", "Candidate","Budget Manager", "AI"]
+
+            if sender in ai_roles:
 
                 with st.chat_message("assistant"):
                     st.write(f"🤖 **{sender}:** {message}")

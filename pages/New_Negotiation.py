@@ -28,16 +28,33 @@ if "role" not in st.session_state:
 st.title("🚀 Start a New Negotiation")
 
 st.write(
-    "Select the negotiation mode, configure the scenario, and start the negotiation."
+    "Select the negotiation scenario, choose the negotiation mode, configure the settings, and start negotiating."
 )
 
 st.divider()
 
 # ==========================================
-# Step 1
+# Step 1 : Scenario
 # ==========================================
 
-st.subheader("🎯 Step 1 : Select Negotiation Mode")
+st.subheader("📋 Step 1 : Select Negotiation Scenario")
+
+scenario = st.selectbox(
+    "Negotiation Scenario",
+    [
+        "Vendor Pricing Negotiation",
+        "Job Offer Negotiation",
+        "Project Budget Allocation"
+    ]
+)
+
+st.divider()
+
+# ==========================================
+# Step 2 : Negotiation Mode
+# ==========================================
+
+st.subheader("🎯 Step 2 : Select Negotiation Mode")
 
 col1, col2 = st.columns(2)
 
@@ -46,13 +63,13 @@ with col1:
     st.info("""
 ### 🤖 Simulation Mode
 
-• AI Buyer vs AI Seller
+• AI vs AI Negotiation
 
-• Fully Autonomous Negotiation
+• Fully Autonomous
 
 • Observe AI Decision Making
 
-• Best for Demonstration
+• (Coming Soon)
 """)
 
     if st.button(
@@ -67,11 +84,11 @@ with col2:
     st.info("""
 ### 🎮 Practice Mode
 
-• User vs AI
+• Human vs AI
 
-• Choose Buyer or Supplier
+• Role changes automatically
 
-• Practice Negotiation
+• Practice Real Negotiations
 
 • Interactive Learning
 """)
@@ -82,7 +99,9 @@ with col2:
     ):
         st.session_state.mode = "Practice"
 
-# ---------------- Current Mode ----------------
+# ==========================================
+# Current Mode
+# ==========================================
 
 if st.session_state.mode == "Simulation":
 
@@ -92,33 +111,28 @@ elif st.session_state.mode == "Practice":
 
     st.success("✅ Practice Mode Selected")
 
+    if scenario == "Vendor Pricing Negotiation":
+        roles = ["Buyer", "Supplier"]
+
+    elif scenario == "Job Offer Negotiation":
+        roles = ["Candidate", "HR Manager"]
+
+    elif scenario == "Project Budget Allocation":
+        roles = ["Department Representative"]
+
+    else:
+        roles = ["User"]
+
     st.session_state.role = st.radio(
-        "Choose Your Role",
-        ["Buyer", "Supplier"],
+        "Your Role",
+        roles,
         horizontal=True
     )
 
 st.divider()
 
 # ==========================================
-# Step 2
-# ==========================================
-
-st.subheader("📋 Step 2 : Select Scenario")
-
-scenario = st.selectbox(
-    "Negotiation Scenario",
-    [
-        "Vendor Pricing Negotiation",
-        "Job Offer Negotiation",
-        "Project Budget Allocation"
-    ]
-)
-
-st.divider()
-
-# ==========================================
-# Step 3
+# Step 3 : Configuration
 # ==========================================
 
 st.subheader("⚙️ Step 3 : Configuration")
@@ -128,49 +142,31 @@ left, right = st.columns(2)
 with left:
 
     max_rounds = st.slider(
-
         "Maximum Rounds",
-
         5,
-
         20,
-
         10
-
     )
 
     agreement = st.slider(
-
         "Agreement Threshold (%)",
-
         50,
-
         100,
-
         80
-
     )
 
 with right:
 
     response_time = st.slider(
-
         "AI Response Time",
-
         1,
-
         5,
-
         2
-
     )
 
     logging = st.checkbox(
-
         "Enable Logging",
-
         value=True
-
     )
 
 st.divider()
@@ -181,17 +177,15 @@ st.divider()
 
 st.subheader("📄 Summary")
 
-st.write("### Selected Configuration")
-
-st.write(f"**Mode :** {st.session_state.mode}")
+st.write(f"**Scenario:** {scenario}")
+st.write(f"**Mode:** {st.session_state.mode}")
 
 if st.session_state.mode == "Practice":
-    st.write(f"**Role :** {st.session_state.role}")
+    st.write(f"**Your Role:** {st.session_state.role}")
 
-st.write(f"**Scenario :** {scenario}")
-st.write(f"**Maximum Rounds :** {max_rounds}")
-st.write(f"**Agreement Threshold :** {agreement}%")
-st.write(f"**Logging :** {'Enabled' if logging else 'Disabled'}")
+st.write(f"**Maximum Rounds:** {max_rounds}")
+st.write(f"**Agreement Threshold:** {agreement}%")
+st.write(f"**Logging:** {'Enabled' if logging else 'Disabled'}")
 
 st.divider()
 
@@ -206,7 +200,7 @@ if st.button(
 
     if st.session_state.mode is None:
 
-        st.error("Please select Simulation Mode or Practice Mode.")
+        st.error("Please select a negotiation mode.")
 
     elif st.session_state.mode == "Practice" and st.session_state.role is None:
 
@@ -214,23 +208,14 @@ if st.button(
 
     else:
 
-        # Backend accepts only these values
         backend_mode = (
             "AI vs AI"
             if st.session_state.mode == "Simulation"
             else "Human vs AI"
         )
 
-        # Remove emojis before sending
-        backend_scenario = (
-            scenario.replace("🛒 ", "")
-                    .replace("💼 ", "")
-                    .replace("💰 ", "")
-                    .replace("⚙️ ", "")
-        )
-
         payload = {
-            "scenario": backend_scenario,
+            "scenario": scenario,
             "mode": backend_mode,
             "max_rounds": max_rounds
         }
@@ -246,11 +231,10 @@ if st.button(
 
                 data = response.json()
 
-                # Save everything for next pages
                 st.session_state.session_id = data["session_id"]
                 st.session_state.mode = backend_mode
                 st.session_state.role = st.session_state.role
-                st.session_state.scenario = backend_scenario
+                st.session_state.scenario = scenario
                 st.session_state.max_rounds = max_rounds
                 st.session_state.agreement = agreement
                 st.session_state.response_time = response_time

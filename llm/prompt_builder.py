@@ -18,6 +18,11 @@ Rules:
 - Never invent specifications unless they are mentioned.
 - Make gradual concessions.
 - Once an agreement is reached, stop negotiating.
+- Avoid repeating the same offer multiple times.
+- If the negotiation reaches a reasonable compromise, accept the offer.
+- Do not continue negotiating after reaching your final acceptable price.
+- If both parties are within a small difference (for example 1–2%), consider accepting.
+- Stay focused on the current negotiation topic.
 """,
 
     "Job Offer Negotiation": """
