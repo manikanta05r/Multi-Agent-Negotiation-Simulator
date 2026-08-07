@@ -21,22 +21,32 @@ show_navbar()
 session_id = st.session_state.get("session_id")
 
 if not session_id:
-    st.warning("No negotiation report available. Please complete a negotiation first.")
+    st.warning(
+        "No negotiation report available. Please complete a negotiation first."
+    )
     st.stop()
+
+# ==========================================
+# Get Report
+# ==========================================
+
 try:
+
     response = requests.get(
         f"http://127.0.0.1:8000/report/{session_id}"
     )
 
-    report = response.json()
-
-    if "error" in report:
-        st.error(report["error"])
-        st.stop()
+    if response.status_code == 200:
+        report = response.json()
+    else:
+        report = None
+        st.error("Unable to fetch report.")
 
 except Exception as e:
-    st.error(f"Backend Error: {e}")
-    st.stop()
+
+    report = None
+    st.error(f"Backend connection failed.\n\n{e}")
+
 
 st.title("📊 Negotiation Reports & Analytics")
 

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from schemas.next_round import NextRoundRequest
-
+from schemas.simulation import SimulationRequest
 from schemas.negotiation import NegotiationRequest
 from backend.orchestrator import NegotiationOrchestrator
 
@@ -29,6 +29,10 @@ def start_negotiation(request: NegotiationRequest):
 @app.post("/next-round")
 def next_round(request: NextRoundRequest):
     return orchestrator.next_round(request)
+
+@app.post("/simulate-negotiation")
+def simulate_negotiation(request: SimulationRequest):
+    return orchestrator.simulate_negotiation(request.session_id)
 
 @app.get("/conversation/{session_id}")
 def get_conversation(session_id: str):

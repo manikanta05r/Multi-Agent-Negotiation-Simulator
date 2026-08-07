@@ -120,8 +120,7 @@ class NegotiationOrchestrator:
                 "speaker": ai_speaker,
                 "message": final_reply
             }
-        
-            
+
 
 
         # Deadlock
@@ -215,6 +214,22 @@ class NegotiationOrchestrator:
         conversation = self.conversation_manager.get_conversation(
             request.session_id
         )
+        # Simulation already completed
+        if session.get("status") != "in_progress":
+
+            return {
+
+                "status": session.get("status"),
+
+                "scenario": session["scenario"],
+
+                "mode": session["mode"],
+
+                "max_rounds": session["max_rounds"],
+
+                "conversation": conversation
+
+            }
 
         current_round = sum(
             1
@@ -256,29 +271,366 @@ class NegotiationOrchestrator:
             "speaker": ai_speaker,
             "message": ai_reply
         }
-
-    def generate_report(self, session_id):
-
-        conversation = self.conversation_manager.get_conversation(session_id)
-
-        if not conversation:
-            return {
-                "error": "Session not found"
-            }
+    def simulate_negotiation(self, session_id):
 
         session = self.session_manager.get_session(session_id)
 
         if session is None:
             return {
-                "error": "Session not found"
+                "error": "Invalid session"
+            }
+
+        conversation = self.conversation_manager.get_conversation(
+            session_id
+        )
+
+        # -----------------------------
+        # Already simulated?
+        # -----------------------------
+
+        if session.get("status") != "in_progress":
+            return {
+                "status": session["status"],
+                "scenario": session["scenario"],
+                "mode": session["mode"],
+                "max_rounds": session["max_rounds"],
+                "conversation": conversation
             }
 
         scenario = session["scenario"]
-        status = session.get("status", "completed")
+        mode = session["mode"]
+        max_rounds = session["max_rounds"]
 
-        return self.report_generator.generate_report(
-            session_id,
-            conversation,
-            status,
-            scenario
+        # -----------------------------
+        # Opening Message
+        # -----------------------------
+
+        if len(conversation) == 0:
+
+            if scenario == "Vendor Pricing Negotiation":
+
+                self.conversation_manager.add_message(
+
+                    session_id,
+
+                    "Supplier",
+
+                    "We are pleased to offer 100 laptops at ₹1,05,000 per unit with standard warranty and delivery."
+
+                )
+
+            elif scenario == "Job Offer Negotiation":
+
+                self.conversation_manager.add_message(
+
+                    session_id,
+
+                    "HR Manager",
+
+                    "We are pleased to offer you a position with a salary of ₹10 LPA along with standard company benefits."
+
+                )
+
+            conversation = self.conversation_manager.get_conversation(
+                session_id
+            )
+            print("\n========== Conversation after Opening ==========")
+
+            for msg in conversation:
+                print(msg["speaker"], ":", msg["message"])
+
+            print("==============================================\n")
+
+            # -----------------------------
+            # Negotiation Loop
+            # -----------------------------
+
+        for round_number in range(max_rounds):
+
+            conversation = self.conversation_manager.get_conversation(
+                session_id
+            )
+
+            # -----------------------------
+            # Buyer Turn
+            # -----------------------------
+
+            if scenario == "Vendor Pricing Negotiation":
+
+                buyer_response = self.buyer_agent.negotiate(
+                    conversation,
+                    scenario
+                )
+
+                buyer_reply = buyer_response["message"]
+
+                # Gemini quota exceeded
+                if (
+                    "RESOURCE_EXHAUSTED" in buyer_reply
+                    or "429" in buyer_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Simulation stopped because the Gemini API quota was exceeded."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "quota_exceeded"
+                    )
+
+                    break
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "Buyer",
+                    buyer_reply
+                )
+
+                # Agreement reached?
+                if self.agreement_detector.is_agreement(
+                    buyer_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation completed successfully. Agreement reached."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "agreement_reached"
+                    )
+
+                    break
+
+
+                conversation = self.conversation_manager.get_conversation(session_id)
+
+                print("\n========== Conversation after Buyer ==========")
+
+                for msg in conversation:
+                    print(msg["speaker"], ":", msg["message"])
+
+                print("=============================================\n")
+
+                # -----------------------------
+                # Supplier Turn
+                # -----------------------------
+
+                supplier_response = self.supplier_agent.negotiate(
+                    conversation,
+                    scenario
+                )
+
+                supplier_reply = supplier_response["message"]
+
+                # Gemini quota exceeded
+                if (
+                    "RESOURCE_EXHAUSTED" in supplier_reply
+                    or "429" in supplier_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Simulation stopped because the Gemini API quota was exceeded."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "quota_exceeded"
+                    )
+
+                    break
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "Supplier",
+                    supplier_reply
+                )
+
+                # Agreement reached?
+                if self.agreement_detector.is_agreement(
+                    supplier_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation completed successfully. Agreement reached."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "agreement_reached"
+                    )
+
+                    break
+                # -----------------------------
+                # Refresh Conversation
+                # -----------------------------
+
+                conversation = self.conversation_manager.get_conversation(
+                    session_id
+                )
+                print("\n========== Conversation after Supplier ==========")
+
+                for msg in conversation:
+                    print(msg["speaker"], ":", msg["message"])
+
+                print("================================================\n")
+
+                # -----------------------------
+                # Deadlock Detection
+                # -----------------------------
+
+                if self.deadlock_detector.is_deadlock(conversation):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation ended due to deadlock."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "deadlock"
+                    )
+
+                    break
+
+
+            elif scenario == "Job Offer Negotiation":
+
+                candidate_response = self.candidate_agent.negotiate(
+                    conversation,
+                    scenario
+                )
+
+                candidate_reply = candidate_response["message"]
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "Candidate",
+                    candidate_reply
+                )
+
+                if self.agreement_detector.is_agreement(candidate_reply):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation completed successfully. Agreement reached."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "agreement_reached"
+                    )
+
+                    break
+
+                conversation = self.conversation_manager.get_conversation(
+                    session_id
+                )
+
+                hr_response = self.hr_agent.negotiate(
+                    conversation,
+                    scenario
+                )
+
+                hr_reply = hr_response["message"]
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "HR Manager",
+                    hr_reply
+                )
+            
+
+                if self.agreement_detector.is_agreement(hr_reply):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation completed successfully. Agreement reached."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "agreement_reached"
+                    )
+
+                    break
+
+                conversation = self.conversation_manager.get_conversation(
+                    session_id
+                )
+
+                if self.deadlock_detector.is_deadlock(conversation):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation ended due to deadlock."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "deadlock"
+                    )
+
+                    break            
+        
+
+
+
+
+
+
+
+            # ---------------------------------
+            # Loop Finished
+            # ---------------------------------
+
+        session = self.session_manager.get_session(session_id)
+
+        # No status means maximum rounds reached
+        if session.get("status") == "in_progress":
+
+            self.conversation_manager.add_message(
+                session_id,
+                "System",
+                f"Maximum of {max_rounds} rounds reached."
+            )
+
+            self.session_manager.update_status(
+                session_id,
+                "max_rounds_reached"
+            )
+
+            session = self.session_manager.get_session(
+                session_id
+            )
+
+        conversation = self.conversation_manager.get_conversation(
+            session_id
         )
+
+        return {
+
+            "status": session["status"],
+
+            "scenario": scenario,
+
+            "mode": mode,
+
+            "max_rounds": max_rounds,
+
+            "conversation": conversation
+
+                }

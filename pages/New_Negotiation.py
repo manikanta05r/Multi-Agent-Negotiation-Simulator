@@ -242,7 +242,10 @@ if st.button(
 
                 st.success(data["message"])
 
-                st.switch_page("pages/Live_Negotiation.py")
+                if backend_mode == "AI vs AI":
+                    st.switch_page("pages/Simulation.py")
+                else:
+                    st.switch_page("pages/Live_Negotiation.py")
 
             else:
 
