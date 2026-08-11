@@ -5,8 +5,13 @@ import time
 from components.styles import load_css
 from components.navbar import show_navbar
 
+
+# ============================================================
+# PAGE CONFIG
+# ============================================================
+
 st.set_page_config(
-    page_title="Simulation",
+    page_title="AI vs AI Simulation",
     page_icon="🤖",
     layout="wide"
 )
@@ -14,246 +19,502 @@ st.set_page_config(
 load_css()
 show_navbar()
 
-# ==========================================
-# Session State
-# ==========================================
 
-scenario = st.session_state.get("scenario", "")
-st.write("Scenario from session:", scenario)
-mode = st.session_state.get("mode", "AI vs AI")
-max_rounds = st.session_state.get("max_rounds", 10)
-session_id = st.session_state.get("session_id", "")
+# ============================================================
+# SESSION STATE
+# ============================================================
 
-if not session_id:
-    st.error("No active negotiation found.")
-    st.stop()
-
-# ==========================================
-# Speaker Icons
-# ==========================================
-
-icons = {
-    "Buyer": "🛒",
-    "Supplier": "🏭",
-    "HR Manager": "👨‍💼",
-    "Candidate": "👨‍🎓",
-    "Budget Manager": "💰",
-    "System": "⚙️"
+defaults = {
+    "simulation_messages": [],
+    "simulation_started": False,
+    "simulation_finished": False,
+    "simulation_round": 0,
+    "simulation_status": "Waiting",
+    "active_agent": None,
 }
 
-# ==========================================
-# Get Conversation
-# ==========================================
+for key, value in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = value
 
-try:
 
-    response = requests.post(
-        "http://127.0.0.1:8000/simulate-negotiation",
-        json={"session_id": session_id}
+# ============================================================
+# GET NEGOTIATION DETAILS
+# ============================================================
+
+scenario = st.session_state.get(
+    "scenario",
+    "Vendor Pricing Negotiation"
+)
+
+session_id = st.session_state.get(
+    "session_id",
+    ""
+)
+
+max_rounds = st.session_state.get(
+    "max_rounds",
+    10
+)
+
+agent1 = st.session_state.get(
+    "agent1_config",
+    {}
+)
+
+agent2 = st.session_state.get(
+    "agent2_config",
+    {}
+)
+
+agent1_name = agent1.get(
+    "name",
+    "Buyer"
+)
+
+agent1_role = agent1.get(
+    "role",
+    "Buyer"
+)
+
+agent2_name = agent2.get(
+    "name",
+    "Supplier"
+)
+
+agent2_role = agent2.get(
+    "role",
+    "Supplier"
+)
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+st.title("🤖 AI vs AI Negotiation")
+
+st.write(
+    f"### {scenario}"
+)
+
+st.caption(
+    "Two autonomous AI agents are negotiating automatically."
+)
+
+st.divider()
+
+
+# ============================================================
+# NEGOTIATION STATUS
+# ============================================================
+
+status = st.session_state.simulation_status
+
+if status == "Agreement Reached":
+
+    st.success(
+        "✅ Agreement Reached"
     )
 
-    if response.status_code != 200:
-        st.error(response.text)
-        st.stop()
+elif status == "Deadlock":
 
-    data = response.json()
-    status = data.get("status", "running")
-
-except Exception as e:
-
-    st.error(f"Unable to connect to backend.\n\n{e}")
-    st.stop()
-
-conversation = data["conversation"]
-
-print("Conversation received from backend:")
-for msg in conversation:
-    print(msg["speaker"], ":", msg["message"])
-
-if scenario == "Vendor Pricing Negotiation":
-
-    rounds = (
-        sum(
-            1
-            for msg in conversation
-            if msg["speaker"] in ["Buyer", "Supplier"]
-        ) // 2
+    st.warning(
+        "⚠️ Negotiation ended due to deadlock."
     )
 
-elif scenario == "Job Offer Negotiation":
+elif status == "Completed":
 
-    rounds = (
-        sum(
-            1
-            for msg in conversation
-            if msg["speaker"] in ["Candidate", "HR Manager"]
-        ) // 2
-    )
-
-elif scenario == "Project Budget Allocation":
-
-    rounds = (
-        sum(
-            1
-            for msg in conversation
-            if msg["speaker"] == "Budget Manager"
-        )
+    st.success(
+        "🏁 Negotiation Completed"
     )
 
 else:
 
-    rounds = 0
+    st.info(
+        "🤖 AI agents are negotiating automatically..."
+    )
 
-# ==========================================
-# Header
-# ==========================================
 
-st.title("🤖 AI vs AI Negotiation")
+# ============================================================
+# AGENT CARDS
+# ============================================================
 
-st.write(f"### Scenario: {scenario}")
+agent1_col, agent2_col = st.columns(
+    2,
+    gap="large"
+)
+
+
+# ============================================================
+# AGENT 1 CARD
+# ============================================================
+
+with agent1_col:
+
+    with st.container(border=True):
+
+        st.markdown(
+            f"## 🤖 {agent1_name}"
+        )
+
+        st.caption(
+            f"Role: {agent1_role}"
+        )
+
+        st.divider()
+
+        if st.session_state.active_agent == agent1_name:
+
+            st.info(
+                "🟡 Thinking..."
+            )
+
+        else:
+
+            st.success(
+                "🟢 Ready"
+            )
+
+        # Latest message from Agent 1
+
+        agent1_messages = [
+            message
+            for message in st.session_state.simulation_messages
+            if message.get("speaker") == agent1_name
+            or message.get("speaker") == agent1_role
+        ]
+
+        if agent1_messages:
+
+            latest = agent1_messages[-1]
+
+            st.markdown(
+                "**Latest Response**"
+            )
+
+            st.write(
+                latest.get(
+                    "message",
+                    ""
+                )
+            )
+
+        else:
+
+            st.caption(
+                "Waiting for negotiation..."
+            )
+
+
+# ============================================================
+# AGENT 2 CARD
+# ============================================================
+
+with agent2_col:
+
+    with st.container(border=True):
+
+        st.markdown(
+            f"## 🤖 {agent2_name}"
+        )
+
+        st.caption(
+            f"Role: {agent2_role}"
+        )
+
+        st.divider()
+
+        if st.session_state.active_agent == agent2_name:
+
+            st.info(
+                "🟡 Thinking..."
+            )
+
+        else:
+
+            st.success(
+                "🟢 Ready"
+            )
+
+        # Latest message from Agent 2
+
+        agent2_messages = [
+            message
+            for message in st.session_state.simulation_messages
+            if message.get("speaker") == agent2_name
+            or message.get("speaker") == agent2_role
+        ]
+
+        if agent2_messages:
+
+            latest = agent2_messages[-1]
+
+            st.markdown(
+                "**Latest Response**"
+            )
+
+            st.write(
+                latest.get(
+                    "message",
+                    ""
+                )
+            )
+
+        else:
+
+            st.caption(
+                "Waiting for negotiation..."
+            )
+
+
+# ============================================================
+# NEGOTIATION INFORMATION
+# ============================================================
 
 st.divider()
 
-chat_col, status_col = st.columns([3, 1])
+info1, info2, info3 = st.columns(3)
 
-# ==========================================
-# Chat Section
-# ==========================================
+with info1:
 
-with chat_col:
+    st.metric(
+        "Current Round",
+        f"{st.session_state.simulation_round}/{max_rounds}"
+    )
 
-    st.subheader("🗨️ Negotiation Conversation")
+with info2:
 
-    st.info("🤖 Simulation Mode | AI vs AI")
+    st.metric(
+        "Mode",
+        "AI vs AI"
+    )
 
-    chat_container = st.container()
+with info3:
 
-    with chat_container:
+    st.metric(
+        "Status",
+        status
+    )
 
-        for msg in conversation:
 
-            speaker = msg["speaker"]
-            text = msg["message"]
+# ============================================================
+# NEGOTIATION CONVERSATION
+# ============================================================
 
-            icon = icons.get(speaker, "🤖")
+st.divider()
 
-            # Thinking animation
-            thinking = st.empty()
-            thinking.info(f"{icon} {speaker} is thinking...")
-            time.sleep(0.3)
-            thinking.empty()
+st.subheader(
+    "💬 Negotiation Conversation"
+)
 
-            if speaker in [
-                "Supplier",
-                "HR Manager",
-                "Budget Manager"
-            ]:
 
-                with st.chat_message("assistant"):
+if not st.session_state.simulation_messages:
 
-                    st.write(f"{icon} **{speaker}**")
-                    st.write(text)
+    st.info(
+        "Waiting for the AI agents to start negotiating..."
+    )
+
+else:
+
+    for message in st.session_state.simulation_messages:
+
+        speaker = message.get(
+            "speaker",
+            "AI Agent"
+        )
+
+        text = message.get(
+            "message",
+            ""
+        )
+
+        round_number = message.get(
+            "round",
+            None
+        )
+
+        if round_number:
+
+            round_text = f" • Round {round_number}"
+
+        else:
+
+            round_text = ""
+
+        with st.chat_message("assistant"):
+
+            st.markdown(
+                f"**🤖 {speaker}**{round_text}"
+            )
+
+            st.write(text)
+
+
+# ============================================================
+# AUTOMATIC BACKEND UPDATE
+# ============================================================
+
+if (
+    session_id
+    and not st.session_state.simulation_finished
+):
+
+    try:
+
+        response = requests.get(
+            f"http://127.0.0.1:8000/negotiation/{session_id}",
+            timeout=10
+        )
+
+        if response.status_code == 200:
+
+            data = response.json()
+
+
+            # ------------------------------------------------
+            # ACTIVE AGENT
+            # ------------------------------------------------
+
+            st.session_state.active_agent = data.get(
+                "active_agent",
+                None
+            )
+
+
+            # ------------------------------------------------
+            # ROUND
+            # ------------------------------------------------
+
+            st.session_state.simulation_round = data.get(
+                "round",
+                st.session_state.simulation_round
+            )
+
+
+            # ------------------------------------------------
+            # MESSAGES
+            # ------------------------------------------------
+
+            messages = data.get(
+                "messages",
+                []
+            )
+
+            if messages:
+
+                st.session_state.simulation_messages = messages
+
+
+            # ------------------------------------------------
+            # STATUS
+            # ------------------------------------------------
+
+            backend_status = data.get(
+                "status",
+                "negotiating"
+            )
+
+            if backend_status == "agreement_reached":
+
+                st.session_state.simulation_status = (
+                    "Agreement Reached"
+                )
+
+                st.session_state.simulation_finished = True
+
+                st.session_state.active_agent = None
+
+
+            elif backend_status == "deadlock":
+
+                st.session_state.simulation_status = (
+                    "Deadlock"
+                )
+
+                st.session_state.simulation_finished = True
+
+                st.session_state.active_agent = None
+
+
+            elif backend_status in (
+                "completed",
+                "max_rounds_reached"
+            ):
+
+                st.session_state.simulation_status = (
+                    "Completed"
+                )
+
+                st.session_state.simulation_finished = True
+
+                st.session_state.active_agent = None
+
 
             else:
 
-                with st.chat_message("user"):
+                st.session_state.simulation_status = (
+                    "Negotiating"
+                )
 
-                    st.write(f"{icon} **{speaker}**")
-                    st.write(text)
 
-    if status == "agreement_reached":
-        st.balloons()
+    except requests.exceptions.RequestException:
 
-    st.success(f"""
-# ✅ AI vs AI Negotiation Completed
+        # Backend may still be under development.
+        # Keep the UI running without crashing.
 
-**Scenario:** {scenario}
+        pass
 
-**Outcome:** {status.replace("_", " ").title()}
 
-**Rounds Completed:** {rounds}
-""")
+# ============================================================
+# AUTOMATIC REFRESH
+# ============================================================
 
-# ==========================================
-# Status Panel
-# ==========================================
+if (
+    session_id
+    and not st.session_state.simulation_finished
+):
 
-with status_col:
+    time.sleep(1)
 
-    st.subheader("📊 Negotiation Status")
+    st.rerun()
 
-    st.metric("Mode", mode)
 
-    st.metric("Scenario", scenario)
-
-    st.metric("Rounds", f"{rounds}/{max_rounds}")
-
-    st.progress(min(rounds / max_rounds, 1.0))
-
-    st.divider()
-
-    if status == "agreement_reached":
-
-        st.success("✅ Agreement Reached")
-
-    elif status == "deadlock":
-
-        st.warning("⚠ Deadlock")
-
-    elif status == "quota_exceeded":
-
-        st.error("⛔ Gemini API Quota Exceeded")
-
-    elif status == "max_rounds_reached":
-
-        st.warning("⚠ Maximum Rounds Reached")
-
-    else:
-
-        st.info("🤖 Simulation Running")
-
-# ==========================================
-# Summary
-# ==========================================
+# ============================================================
+# BOTTOM ACTIONS
+# ============================================================
 
 st.divider()
 
-st.subheader("📄 Negotiation Summary")
+back_col, restart_col = st.columns(2)
 
-st.info(f"""
-### Negotiation Summary
 
-**Scenario:** {scenario}
+with back_col:
 
-**Mode:** {mode}
+    if st.button(
+        "🏠 Back to Home",
+        use_container_width=True
+    ):
 
-**Rounds Completed:** {rounds}
+        st.session_state.simulation_finished = True
 
-**Final Status:** {status.replace("_", " ").title()}
-""")
+        st.switch_page(
+            "pages/Home.py"
+        )
 
-# ==========================================
-# Navigation
-# ==========================================
 
-st.divider()
+with restart_col:
 
-col1, col2, col3 = st.columns(3)
+    if st.button(
+        "🔄 Restart Simulation",
+        use_container_width=True
+    ):
 
-with col1:
-
-    if st.button("🔄 Restart Simulation", use_container_width=True):
+        st.session_state.simulation_messages = []
+        st.session_state.simulation_started = False
+        st.session_state.simulation_finished = False
+        st.session_state.simulation_round = 0
+        st.session_state.simulation_status = "Waiting"
+        st.session_state.active_agent = None
 
         st.rerun()
-
-with col2:
-
-    if st.button("📊 View Reports", use_container_width=True):
-
-        st.switch_page("pages/Reports.py")
-
-with col3:
-
-    if st.button("🏠 Back to Home", use_container_width=True):
-
-        st.switch_page("pages/Home.py")
