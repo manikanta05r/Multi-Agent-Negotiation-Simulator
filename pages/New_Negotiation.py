@@ -26,22 +26,15 @@ show_navbar()
 defaults = {
     "mode": None,
     "role": None,
-    "scenario": "Vendor Pricing Negotiation",
     "session_id": "",
+    "scenario": "Vendor Pricing Negotiation",
     "max_rounds": 10,
     "agreement": 80,
     "response_time": 2,
     "logging": True,
 
-    # AI Agent configuration
     "agent1_config": {},
     "agent2_config": {},
-
-    # Simulation state
-    "simulation_messages": [],
-    "simulation_started": False,
-    "simulation_finished": False,
-    "simulation_round": 0,
 }
 
 for key, value in defaults.items():
@@ -50,101 +43,14 @@ for key, value in defaults.items():
 
 
 # ============================================================
-# CUSTOM UI CSS
-# ============================================================
-
-st.markdown(
-    """
-    <style>
-
-    .main-title {
-        font-size: 38px;
-        font-weight: 700;
-        margin-bottom: 5px;
-    }
-
-    .sub-title {
-        color: #667085;
-        font-size: 16px;
-        margin-bottom: 25px;
-    }
-
-    .section-title {
-        font-size: 22px;
-        font-weight: 700;
-        margin-top: 10px;
-        margin-bottom: 4px;
-    }
-
-    .section-description {
-        color: #667085;
-        margin-bottom: 18px;
-    }
-
-    .mode-card {
-        padding: 24px;
-        border: 1px solid #e4e7ec;
-        border-radius: 16px;
-        background: #ffffff;
-        min-height: 220px;
-    }
-
-    .mode-icon {
-        font-size: 30px;
-        margin-bottom: 8px;
-    }
-
-    .mode-title {
-        font-size: 21px;
-        font-weight: 700;
-        margin-bottom: 8px;
-    }
-
-    .mode-description {
-        color: #667085;
-        line-height: 1.7;
-        min-height: 110px;
-    }
-
-    .agent-header {
-        font-size: 22px;
-        font-weight: 700;
-        margin-bottom: 3px;
-    }
-
-    .agent-subtitle {
-        color: #667085;
-        margin-bottom: 20px;
-    }
-
-    .summary-box {
-        padding: 20px;
-        border: 1px solid #e4e7ec;
-        border-radius: 14px;
-        background: #ffffff;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
 # HEADER
 # ============================================================
 
-st.markdown(
-    '<div class="main-title">🚀 Start a New Negotiation</div>',
-    unsafe_allow_html=True
-)
+st.title("🚀 Start a New Negotiation")
 
-st.markdown(
-    '<div class="sub-title">'
-    'Select the scenario, choose the negotiation mode, configure the participants, '
-    'and start the negotiation.'
-    '</div>',
-    unsafe_allow_html=True
+st.write(
+    "Select the negotiation scenario, choose the negotiation mode, "
+    "configure the agents, and start the negotiation."
 )
 
 st.divider()
@@ -154,26 +60,23 @@ st.divider()
 # STEP 1 — SCENARIO
 # ============================================================
 
-st.markdown(
-    '<div class="section-title">📋 Step 1 — Select Negotiation Scenario</div>',
-    unsafe_allow_html=True
-)
+st.subheader("📋 Step 1 — Select Negotiation Scenario")
 
-st.markdown(
-    '<div class="section-description">'
-    'Choose the type of negotiation you want to practice or simulate.'
-    '</div>',
-    unsafe_allow_html=True
-)
+scenarios = [
+    "Vendor Pricing Negotiation",
+    "Job Offer Negotiation",
+    "Project Budget Allocation"
+]
 
 scenario = st.selectbox(
     "Negotiation Scenario",
-    [
-        "Vendor Pricing Negotiation",
-        "Job Offer Negotiation",
-        "Project Budget Allocation"
-    ],
-    key="scenario_select"
+    scenarios,
+    index=scenarios.index(
+        st.session_state.get(
+            "scenario",
+            "Vendor Pricing Negotiation"
+        )
+    )
 )
 
 st.session_state.scenario = scenario
@@ -182,182 +85,232 @@ st.divider()
 
 
 # ============================================================
-# STEP 2 — MODE
+# STEP 2 — NEGOTIATION MODE
 # ============================================================
 
-st.markdown(
-    '<div class="section-title">🎯 Step 2 — Select Negotiation Mode</div>',
-    unsafe_allow_html=True
+st.subheader("🎯 Step 2 — Select Negotiation Mode")
+
+mode_col1, mode_col2 = st.columns(
+    2,
+    gap="large"
 )
 
-st.markdown(
-    '<div class="section-description">'
-    'Choose whether you want two AI agents to negotiate or participate yourself.'
-    '</div>',
-    unsafe_allow_html=True
-)
 
-mode_col1, mode_col2 = st.columns(2, gap="large")
-
-
-# ---------------- SIMULATION ----------------
+# ============================================================
+# AI VS AI
+# ============================================================
 
 with mode_col1:
 
-    st.markdown(
-        """
-        <div class="mode-card">
-            <div class="mode-icon">🤖</div>
-            <div class="mode-title">Simulation Mode</div>
-            <div class="mode-description">
-                <b>AI vs AI Negotiation</b><br>
-                • Two autonomous agents<br>
-                • Watch their negotiation strategies<br>
-                • Observe offers and counter-offers<br>
-                • Analyze the final outcome
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    with st.container(border=True):
 
-    if st.button(
-        "🤖 Select AI vs AI",
-        use_container_width=True,
-        key="simulation_mode_button"
-    ):
-        st.session_state.mode = "Simulation"
-        st.session_state.role = None
-        st.rerun()
+        st.markdown("### 🤖 Simulation Mode")
+
+        st.write(
+            "Two autonomous AI agents negotiate with each other."
+        )
+
+        st.markdown(
+            """
+            - AI vs AI negotiation
+            - Fully autonomous
+            - Observe AI decision making
+            - Automatic negotiation flow
+            """
+        )
+
+        if st.button(
+            "🤖 Select Simulation",
+            use_container_width=True,
+            key="simulation_mode"
+        ):
+
+            st.session_state.mode = "Simulation"
+            st.session_state.role = None
+
+            st.rerun()
 
 
-# ---------------- PRACTICE ----------------
+# ============================================================
+# HUMAN VS AI
+# ============================================================
 
 with mode_col2:
 
-    st.markdown(
-        """
-        <div class="mode-card">
-            <div class="mode-icon">🎮</div>
-            <div class="mode-title">Practice Mode</div>
-            <div class="mode-description">
-                <b>Human vs AI Negotiation</b><br>
-                • You control one participant<br>
-                • AI responds to your offers<br>
-                • Practice realistic negotiations<br>
-                • Improve your negotiation skills
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    with st.container(border=True):
 
-    if st.button(
-        "🎮 Select Human vs AI",
-        use_container_width=True,
-        key="practice_mode_button"
-    ):
-        st.session_state.mode = "Practice"
-        st.rerun()
+        st.markdown("### 🎮 Practice Mode")
+
+        st.write(
+            "Practice negotiation with an AI opponent."
+        )
+
+        st.markdown(
+            """
+            - Human vs AI
+            - Interactive negotiation
+            - Choose your role
+            - Practice real scenarios
+            """
+        )
+
+        if st.button(
+            "🎮 Select Practice",
+            use_container_width=True,
+            key="practice_mode"
+        ):
+
+            st.session_state.mode = "Practice"
+
+            st.rerun()
 
 
 # ============================================================
-# CURRENT MODE
+# SELECTED MODE
 # ============================================================
 
 if st.session_state.mode == "Simulation":
 
-    st.success("🤖 Simulation Mode Selected — AI vs AI")
+    st.success(
+        "✅ Simulation Mode Selected — AI vs AI"
+    )
 
 elif st.session_state.mode == "Practice":
 
-    st.info("🎮 Practice Mode Selected — Human vs AI")
-
-
-# ============================================================
-# PRACTICE ROLE
-# ============================================================
-
-if st.session_state.mode == "Practice":
-
-    st.divider()
-
-    st.markdown(
-        '<div class="section-title">👤 Choose Your Role</div>',
-        unsafe_allow_html=True
+    st.success(
+        "✅ Practice Mode Selected — Human vs AI"
     )
 
-    if scenario == "Vendor Pricing Negotiation":
-        roles = ["Buyer", "Supplier"]
 
-    elif scenario == "Job Offer Negotiation":
-        roles = ["Candidate", "HR Manager"]
+# ============================================================
+# SCENARIO-SPECIFIC CONFIGURATION
+# ============================================================
 
-    else:
-        roles = ["Department Representative"]
+if scenario == "Vendor Pricing Negotiation":
 
-    role = st.radio(
-        "Your Role",
-        roles,
-        horizontal=True,
-        key="practice_role"
+    field1_label = "Starting Target"
+    field2_label = "Reservation Price / Walk Away"
+
+    field1_help = (
+        "Initial price/value the agent wants to negotiate from."
     )
 
-    st.session_state.role = role
+    field2_help = (
+        "The limit beyond which the agent will walk away."
+    )
+
+    agent1_field1_default = 7000
+    agent1_field2_default = 9000
+
+    agent2_field1_default = 11000
+    agent2_field2_default = 8500
+
+    field1_prefix = "₹"
+    field2_prefix = "₹"
+
+elif scenario == "Job Offer Negotiation":
+
+    field1_label = "Starting Salary (LPA)"
+    field2_label = "Minimum / Maximum Acceptable Salary (LPA)"
+
+    field1_help = (
+        "Initial salary expectation proposed by the agent."
+    )
+
+    field2_help = (
+        "Salary limit the agent is willing to accept or offer."
+    )
+
+    agent1_field1_default = 8.0
+    agent1_field2_default = 6.0
+
+    agent2_field1_default = 5.5
+    agent2_field2_default = 7.0
+
+    field1_prefix = "₹"
+    field2_prefix = "₹"
+
+else:
+
+    field1_label = "Requested Budget (₹)"
+    field2_label = "Minimum Acceptable Budget (₹)"
+
+    field1_help = (
+        "Initial budget requested by the department."
+    )
+
+    field2_help = (
+        "Minimum budget required by the department."
+    )
+
+    agent1_field1_default = 1000000
+    agent1_field2_default = 700000
+
+    agent2_field1_default = 800000
+    agent2_field2_default = 500000
+
+    field1_prefix = "₹"
+    field2_prefix = "₹"
 
 
 # ============================================================
-# AI AGENTS — SIMULATION ONLY
+# AI VS AI — AGENT CONFIGURATION
 # ============================================================
 
 if st.session_state.mode == "Simulation":
 
     st.divider()
 
-    st.markdown(
-        '<div class="section-title">🤖 Configure AI Agents</div>',
-        unsafe_allow_html=True
+    st.subheader("🤖 Configure AI Agents")
+
+    st.caption(
+        "Configure the two autonomous participants "
+        "for the negotiation."
     )
 
-    st.markdown(
-        '<div class="section-description">'
-        'Configure the two autonomous participants in the simulation.'
-        '</div>',
-        unsafe_allow_html=True
+    agent1_col, agent2_col = st.columns(
+        2,
+        gap="large"
     )
-
-    agent_col1, agent_col2 = st.columns(2, gap="large")
 
 
     # ========================================================
     # AGENT 1
     # ========================================================
 
-    with agent_col1:
+    with agent1_col:
 
         with st.container(border=True):
 
-            st.markdown(
-                '<div class="agent-header">🟣 Agent 1</div>',
-                unsafe_allow_html=True
+            st.markdown("### 🟣 Agent 1")
+
+            st.caption(
+                "First negotiation participant"
             )
 
-            st.markdown(
-                '<div class="agent-subtitle">'
-                'First negotiation participant'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.divider()
 
             agent1_name = st.text_input(
-                "Agent Name",
-                value="Buyer",
+                "Agent 1 Name",
+                value="Buyer"
+                if scenario == "Vendor Pricing Negotiation"
+                else (
+                    "Candidate"
+                    if scenario == "Job Offer Negotiation"
+                    else "Department A"
+                ),
                 key="agent1_name"
             )
 
             agent1_role = st.text_input(
-                "Role",
-                value="Buyer",
+                "Agent 1 Role",
+                value="Buyer"
+                if scenario == "Vendor Pricing Negotiation"
+                else (
+                    "Candidate"
+                    if scenario == "Job Offer Negotiation"
+                    else "Department Representative"
+                ),
                 key="agent1_role"
             )
 
@@ -365,18 +318,74 @@ if st.session_state.mode == "Simulation":
                 "Negotiation Strategy",
                 [
                     "Collaborative",
-                    "Competitive",
                     "Assertive",
-                    "Compromising",
-                    "Flexible"
+                    "Competitive",
+                    "Accommodating",
+                    "Compromising"
                 ],
                 key="agent1_strategy"
             )
 
+            st.markdown(f"**{field1_label}**")
+
+            if scenario == "Job Offer Negotiation":
+
+                agent1_field1 = st.number_input(
+                    field1_label,
+                    min_value=0.0,
+                    value=float(agent1_field1_default),
+                    step=0.5,
+                    format="%.1f",
+                    key="agent1_field1",
+                    label_visibility="collapsed"
+                )
+
+            else:
+
+                agent1_field1 = st.number_input(
+                    field1_label,
+                    min_value=0,
+                    value=int(agent1_field1_default),
+                    step=100,
+                    key="agent1_field1",
+                    label_visibility="collapsed"
+                )
+
+            st.caption(field1_help)
+
+            st.markdown(f"**{field2_label}**")
+
+            if scenario == "Job Offer Negotiation":
+
+                agent1_field2 = st.number_input(
+                    field2_label,
+                    min_value=0.0,
+                    value=float(agent1_field2_default),
+                    step=0.5,
+                    format="%.1f",
+                    key="agent1_field2",
+                    label_visibility="collapsed"
+                )
+
+            else:
+
+                agent1_field2 = st.number_input(
+                    field2_label,
+                    min_value=0,
+                    value=int(agent1_field2_default),
+                    step=100,
+                    key="agent1_field2",
+                    label_visibility="collapsed"
+                )
+
+            st.caption(field2_help)
+
             agent1_instructions = st.text_area(
                 "Custom Instructions",
-                placeholder="Optional instructions for Agent 1...",
-                height=120,
+                placeholder=(
+                    "Optional instructions for Agent 1..."
+                ),
+                height=100,
                 key="agent1_instructions"
             )
 
@@ -385,31 +394,39 @@ if st.session_state.mode == "Simulation":
     # AGENT 2
     # ========================================================
 
-    with agent_col2:
+    with agent2_col:
 
         with st.container(border=True):
 
-            st.markdown(
-                '<div class="agent-header">🟠 Agent 2</div>',
-                unsafe_allow_html=True
+            st.markdown("### 🟠 Agent 2")
+
+            st.caption(
+                "Second negotiation participant"
             )
 
-            st.markdown(
-                '<div class="agent-subtitle">'
-                'Second negotiation participant'
-                '</div>',
-                unsafe_allow_html=True
-            )
+            st.divider()
 
             agent2_name = st.text_input(
-                "Agent Name",
-                value="Supplier",
+                "Agent 2 Name",
+                value="Supplier"
+                if scenario == "Vendor Pricing Negotiation"
+                else (
+                    "HR Manager"
+                    if scenario == "Job Offer Negotiation"
+                    else "Department B"
+                ),
                 key="agent2_name"
             )
 
             agent2_role = st.text_input(
-                "Role",
-                value="Supplier",
+                "Agent 2 Role",
+                value="Supplier"
+                if scenario == "Vendor Pricing Negotiation"
+                else (
+                    "HR Manager"
+                    if scenario == "Job Offer Negotiation"
+                    else "Department Representative"
+                ),
                 key="agent2_role"
             )
 
@@ -417,35 +434,114 @@ if st.session_state.mode == "Simulation":
                 "Negotiation Strategy",
                 [
                     "Collaborative",
-                    "Competitive",
                     "Assertive",
-                    "Compromising",
-                    "Flexible"
+                    "Competitive",
+                    "Accommodating",
+                    "Compromising"
                 ],
+                index=1,
                 key="agent2_strategy"
             )
 
+            st.markdown(f"**{field1_label}**")
+
+            if scenario == "Job Offer Negotiation":
+
+                agent2_field1 = st.number_input(
+                    field1_label,
+                    min_value=0.0,
+                    value=float(agent2_field1_default),
+                    step=0.5,
+                    format="%.1f",
+                    key="agent2_field1",
+                    label_visibility="collapsed"
+                )
+
+            else:
+
+                agent2_field1 = st.number_input(
+                    field1_label,
+                    min_value=0,
+                    value=int(agent2_field1_default),
+                    step=100,
+                    key="agent2_field1",
+                    label_visibility="collapsed"
+                )
+
+            st.caption(field1_help)
+
+            st.markdown(f"**{field2_label}**")
+
+            if scenario == "Job Offer Negotiation":
+
+                agent2_field2 = st.number_input(
+                    field2_label,
+                    min_value=0.0,
+                    value=float(agent2_field2_default),
+                    step=0.5,
+                    format="%.1f",
+                    key="agent2_field2",
+                    label_visibility="collapsed"
+                )
+
+            else:
+
+                agent2_field2 = st.number_input(
+                    field2_label,
+                    min_value=0,
+                    value=int(agent2_field2_default),
+                    step=100,
+                    key="agent2_field2",
+                    label_visibility="collapsed"
+                )
+
+            st.caption(field2_help)
+
             agent2_instructions = st.text_area(
                 "Custom Instructions",
-                placeholder="Optional instructions for Agent 2...",
-                height=120,
+                placeholder=(
+                    "Optional instructions for Agent 2..."
+                ),
+                height=100,
                 key="agent2_instructions"
             )
 
-    # Store configuration safely
-    st.session_state.agent1_config = {
-        "name": agent1_name,
-        "role": agent1_role,
-        "strategy": agent1_strategy,
-        "instructions": agent1_instructions
-    }
 
-    st.session_state.agent2_config = {
-        "name": agent2_name,
-        "role": agent2_role,
-        "strategy": agent2_strategy,
-        "instructions": agent2_instructions
-    }
+# ============================================================
+# PRACTICE MODE — ROLE
+# ============================================================
+
+elif st.session_state.mode == "Practice":
+
+    st.divider()
+
+    st.subheader("👤 Choose Your Role")
+
+    if scenario == "Vendor Pricing Negotiation":
+
+        roles = [
+            "Buyer",
+            "Supplier"
+        ]
+
+    elif scenario == "Job Offer Negotiation":
+
+        roles = [
+            "Candidate",
+            "HR Manager"
+        ]
+
+    else:
+
+        roles = [
+            "Department Representative"
+        ]
+
+    st.session_state.role = st.radio(
+        "Your Role",
+        roles,
+        horizontal=True
+    )
 
 
 # ============================================================
@@ -454,13 +550,12 @@ if st.session_state.mode == "Simulation":
 
 st.divider()
 
-st.markdown(
-    '<div class="section-title">⚙️ Step 3 — Configuration</div>',
-    unsafe_allow_html=True
+st.subheader("⚙️ Step 3 — Configuration")
+
+config_left, config_right = st.columns(
+    2,
+    gap="large"
 )
-
-config_left, config_right = st.columns(2, gap="large")
-
 
 with config_left:
 
@@ -468,16 +563,14 @@ with config_left:
         "Maximum Rounds",
         min_value=5,
         max_value=20,
-        value=10,
-        key="max_rounds_slider"
+        value=st.session_state.max_rounds
     )
 
     agreement = st.slider(
         "Agreement Threshold (%)",
         min_value=50,
         max_value=100,
-        value=80,
-        key="agreement_slider"
+        value=st.session_state.agreement
     )
 
 
@@ -487,14 +580,12 @@ with config_right:
         "AI Response Time",
         min_value=1,
         max_value=5,
-        value=2,
-        key="response_time_slider"
+        value=st.session_state.response_time
     )
 
     logging = st.checkbox(
         "Enable Logging",
-        value=True,
-        key="logging_checkbox"
+        value=st.session_state.logging
     )
 
 
@@ -504,36 +595,115 @@ with config_right:
 
 st.divider()
 
-st.markdown(
-    '<div class="section-title">📄 Negotiation Summary</div>',
-    unsafe_allow_html=True
-)
+st.subheader("📄 Negotiation Summary")
 
-summary1, summary2, summary3, summary4 = st.columns(4, gap="medium")
+summary1, summary2, summary3, summary4 = st.columns(4)
 
 with summary1:
-    st.metric("Scenario", scenario)
+
+    st.caption("Scenario")
+
+    st.write(scenario)
+
 
 with summary2:
-    display_mode = (
-        "AI vs AI"
-        if st.session_state.mode == "Simulation"
-        else "Human vs AI"
-        if st.session_state.mode == "Practice"
+
+    st.caption("Mode")
+
+    st.write(
+        st.session_state.mode
+        if st.session_state.mode
         else "Not Selected"
     )
-    st.metric("Mode", display_mode)
+
 
 with summary3:
-    st.metric("Rounds", max_rounds)
+
+    st.caption("Maximum Rounds")
+
+    st.write(max_rounds)
+
 
 with summary4:
-    if st.session_state.mode == "Practice":
-        st.metric("Your Role", st.session_state.role)
-    elif st.session_state.mode == "Simulation":
-        st.metric("Participants", "2 AI Agents")
+
+    st.caption("Participants")
+
+    if st.session_state.mode == "Simulation":
+
+        st.write("AI Agents")
+
+    elif st.session_state.mode == "Practice":
+
+        st.write("Human + AI")
+
     else:
-        st.metric("Participants", "—")
+
+        st.write("Not Selected")
+
+
+# ============================================================
+# AI AGENT SUMMARY
+# ============================================================
+
+if st.session_state.mode == "Simulation":
+
+    st.divider()
+
+    st.subheader("🤖 Agent Configuration Summary")
+
+    summary_agent1, summary_agent2 = st.columns(
+        2,
+        gap="large"
+    )
+
+    with summary_agent1:
+
+        with st.container(border=True):
+
+            st.markdown(
+                f"### 🟣 {agent1_name}"
+            )
+
+            st.write(
+                f"**Role:** {agent1_role}"
+            )
+
+            st.write(
+                f"**Strategy:** {agent1_strategy}"
+            )
+
+            st.write(
+                f"**{field1_label}:** {agent1_field1}"
+            )
+
+            st.write(
+                f"**{field2_label}:** {agent1_field2}"
+            )
+
+
+    with summary_agent2:
+
+        with st.container(border=True):
+
+            st.markdown(
+                f"### 🟠 {agent2_name}"
+            )
+
+            st.write(
+                f"**Role:** {agent2_role}"
+            )
+
+            st.write(
+                f"**Strategy:** {agent2_strategy}"
+            )
+
+            st.write(
+                f"**{field1_label}:** {agent2_field1}"
+            )
+
+            st.write(
+                f"**{field2_label}:** {agent2_field2}"
+            )
 
 
 # ============================================================
@@ -545,94 +715,348 @@ st.divider()
 if st.button(
     "🚀 Start Negotiation",
     use_container_width=True,
-    type="primary",
-    key="start_negotiation"
+    type="primary"
 ):
+
+    # --------------------------------------------------------
+    # MODE VALIDATION
+    # --------------------------------------------------------
 
     if st.session_state.mode is None:
 
-        st.error("Please select a negotiation mode first.")
+        st.error(
+            "Please select a negotiation mode."
+        )
 
-    elif (
+        st.stop()
+
+
+    if (
         st.session_state.mode == "Practice"
         and st.session_state.role is None
     ):
 
-        st.error("Please select your role.")
-
-    else:
-
-        backend_mode = (
-            "AI vs AI"
-            if st.session_state.mode == "Simulation"
-            else "Human vs AI"
+        st.error(
+            "Please choose your role."
         )
 
-        payload = {
+        st.stop()
+
+
+    # ========================================================
+    # SAVE AI AGENT CONFIGURATION
+    # ========================================================
+
+    if st.session_state.mode == "Simulation":
+
+        # ----------------------------------------------------
+        # BASIC VALIDATION
+        # ----------------------------------------------------
+
+        if agent1_field1 <= 0 or agent1_field2 <= 0:
+
+            st.error(
+                "Agent 1 values must be greater than 0."
+            )
+
+            st.stop()
+
+
+        if agent2_field1 <= 0 or agent2_field2 <= 0:
+
+            st.error(
+                "Agent 2 values must be greater than 0."
+            )
+
+            st.stop()
+
+
+        # ----------------------------------------------------
+        # VENDOR PRICING VALIDATION
+        # ----------------------------------------------------
+
+        if scenario == "Vendor Pricing Negotiation":
+
+            # Buyer:
+            # Starting target < Walk-away maximum
+
+            if agent1_field1 >= agent1_field2:
+
+                st.error(
+                    "Agent 1: Starting Target should be "
+                    "less than the Reservation Price / Walk Away."
+                )
+
+                st.stop()
+
+
+            # Supplier:
+            # Starting target > Walk-away minimum
+
+            if agent2_field1 <= agent2_field2:
+
+                st.error(
+                    "Agent 2: Starting Target should be "
+                    "greater than the Reservation Price / Walk Away."
+                )
+
+                st.stop()
+
+
+        # ----------------------------------------------------
+        # JOB OFFER VALIDATION
+        # ----------------------------------------------------
+
+        elif scenario == "Job Offer Negotiation":
+
+            # Candidate:
+            # Starting expectation should be >= minimum
+
+            if agent1_field1 < agent1_field2:
+
+                st.error(
+                    "Agent 1: Starting Salary should be "
+                    "greater than or equal to the Minimum Acceptable Salary."
+                )
+
+                st.stop()
+
+
+            # HR:
+            # Starting offer should be <= maximum budget
+
+            if agent2_field1 > agent2_field2:
+
+                st.error(
+                    "Agent 2: Starting Salary should be "
+                    "less than or equal to the Maximum Acceptable Salary."
+                )
+
+                st.stop()
+
+
+        # ----------------------------------------------------
+        # PROJECT BUDGET VALIDATION
+        # ----------------------------------------------------
+
+        elif scenario == "Project Budget Allocation":
+
+            # Requested budget should be >= minimum
+
+            if agent1_field1 < agent1_field2:
+
+                st.error(
+                    "Agent 1: Requested Budget should be "
+                    "greater than or equal to Minimum Acceptable Budget."
+                )
+
+                st.stop()
+
+
+            if agent2_field1 < agent2_field2:
+
+                st.error(
+                    "Agent 2: Requested Budget should be "
+                    "greater than or equal to Minimum Acceptable Budget."
+                )
+
+                st.stop()
+
+
+        # ----------------------------------------------------
+        # STORE AGENT 1
+        # ----------------------------------------------------
+
+        st.session_state.agent1_config = {
+
+            "name": agent1_name,
+
+            "role": agent1_role,
+
+            "strategy": agent1_strategy,
+
             "scenario": scenario,
-            "mode": backend_mode,
-            "max_rounds": max_rounds
+
+            "starting_value": agent1_field1,
+
+            "reservation_value": agent1_field2,
+
+            "custom_instructions": agent1_instructions
         }
 
-        try:
+
+        # ----------------------------------------------------
+        # STORE AGENT 2
+        # ----------------------------------------------------
+
+        st.session_state.agent2_config = {
+
+            "name": agent2_name,
+
+            "role": agent2_role,
+
+            "strategy": agent2_strategy,
+
+            "scenario": scenario,
+
+            "starting_value": agent2_field1,
+
+            "reservation_value": agent2_field2,
+
+            "custom_instructions": agent2_instructions
+        }
+
+
+    # ========================================================
+    # BACKEND MODE
+    # ========================================================
+
+    backend_mode = (
+        "AI vs AI"
+        if st.session_state.mode == "Simulation"
+        else "Human vs AI"
+    )
+
+
+    # ========================================================
+    # BASE PAYLOAD
+    # ========================================================
+
+    payload = {
+
+        "scenario": scenario,
+
+        "mode": backend_mode,
+
+        "max_rounds": max_rounds,
+
+        "agreement_threshold": agreement,
+
+        "response_time": response_time,
+
+        "logging": logging
+    }
+
+
+    # ========================================================
+    # AI VS AI PAYLOAD
+    # ========================================================
+
+    if st.session_state.mode == "Simulation":
+
+        payload["agent1"] = (
+            st.session_state.agent1_config
+        )
+
+        payload["agent2"] = (
+            st.session_state.agent2_config
+        )
+
+
+    # ========================================================
+    # HUMAN VS AI PAYLOAD
+    # ========================================================
+
+    elif st.session_state.mode == "Practice":
+
+        payload["role"] = (
+            st.session_state.role
+        )
+
+
+    # ========================================================
+    # START BACKEND SESSION
+    # ========================================================
+
+    try:
+
+        with st.spinner(
+            "Starting negotiation..."
+        ):
 
             response = requests.post(
                 "http://127.0.0.1:8000/start-negotiation",
                 json=payload,
-                timeout=30
+                timeout=15
             )
 
-            if response.status_code == 200:
 
-                data = response.json()
+        if response.status_code == 200:
 
-                st.session_state.session_id = data.get(
-                    "session_id",
-                    ""
+            data = response.json()
+
+            st.session_state.session_id = data.get(
+                "session_id",
+                ""
+            )
+
+            st.session_state.mode = backend_mode
+
+            st.session_state.scenario = scenario
+
+            st.session_state.max_rounds = max_rounds
+
+            st.session_state.agreement = agreement
+
+            st.session_state.response_time = response_time
+
+            st.session_state.logging = logging
+
+
+            st.success(
+                data.get(
+                    "message",
+                    "Negotiation started successfully."
                 )
+            )
 
-                st.session_state.max_rounds = max_rounds
-                st.session_state.agreement = agreement
-                st.session_state.response_time = response_time
-                st.session_state.logging = logging
 
-                # Reset simulation
+            # ------------------------------------------------
+            # AI VS AI
+            # ------------------------------------------------
+
+            if backend_mode == "AI vs AI":
+
                 st.session_state.simulation_messages = []
-                st.session_state.simulation_started = False
-                st.session_state.simulation_finished = False
+
                 st.session_state.simulation_round = 0
 
-                if backend_mode == "AI vs AI":
+                st.session_state.simulation_status = (
+                    "Waiting"
+                )
 
-                    st.session_state.mode = "AI vs AI"
+                st.session_state.active_agent = None
 
-                    st.switch_page(
-                        "pages/Simulation.py"
-                    )
+                st.session_state.simulation_finished = False
 
-                else:
+                st.switch_page(
+                    "pages/Simulation.py"
+                )
 
-                    st.session_state.mode = "Human vs AI"
 
-                    st.switch_page(
-                        "pages/Live_Negotiation.py"
-                    )
+            # ------------------------------------------------
+            # HUMAN VS AI
+            # ------------------------------------------------
 
             else:
 
-                st.error(
-                    f"Backend Error: {response.text}"
+                st.session_state.messages = []
+
+                st.switch_page(
+                    "pages/Live_Negotiation.py"
                 )
 
-        except requests.exceptions.ConnectionError:
+
+        else:
 
             st.error(
-                "❌ Backend is not running. "
-                "Start FastAPI first."
+                f"Backend Error: {response.text}"
             )
 
-        except Exception as e:
 
-            st.error(
-                f"❌ Unable to start negotiation:\n\n{e}"
-            )
+    except requests.exceptions.RequestException as e:
+
+        st.error(
+            "Unable to connect to backend.\n\n"
+            f"{e}"
+        )
