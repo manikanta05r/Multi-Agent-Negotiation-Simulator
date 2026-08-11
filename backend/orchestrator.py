@@ -9,6 +9,7 @@ from agents.hr_agent import HRAgent
 from agents.budget_agent import BudgetAgent
 from agents.buyer_agent import BuyerAgent
 from agents.candidate_agent import CandidateAgent
+from agents.department_representative_agent import DepartmentRepresentativeAgent
 
 
 class NegotiationOrchestrator:
@@ -22,6 +23,7 @@ class NegotiationOrchestrator:
         self.supplier_agent = SupplierAgent()
         self.hr_agent = HRAgent()
         self.budget_agent = BudgetAgent()
+        self.department_agent = DepartmentRepresentativeAgent()
         self.buyer_agent = BuyerAgent()
         self.candidate_agent = CandidateAgent()
 
@@ -80,7 +82,12 @@ class NegotiationOrchestrator:
                 )
 
             elif scenario == "Project Budget Allocation":
-                ai_speaker = "Budget Manager"
+
+                ai_speaker = (
+                    "Budget Manager"
+                    if request.speaker == "Department Representative"
+                    else "Department Representative"
+                )
 
             else:
                 ai_speaker = "AI"
@@ -181,11 +188,23 @@ class NegotiationOrchestrator:
 
             elif scenario == "Project Budget Allocation":
 
-                ai_response = self.budget_agent.negotiate(
-                    conversation,
-                    scenario
-                )
-                ai_speaker = "Budget Manager"
+                if request.speaker == "Department Representative":
+
+                    ai_response = self.budget_agent.negotiate(
+                        conversation,
+                        scenario
+                    )
+
+                    ai_speaker = "Budget Manager"
+
+                else:
+
+                    ai_response = self.department_agent.negotiate(
+                        conversation,
+                        scenario
+                    )
+
+                    ai_speaker = "Department Representative"
 
             else:
 
@@ -328,6 +347,18 @@ class NegotiationOrchestrator:
                     "HR Manager",
 
                     "We are pleased to offer you a position with a salary of ₹10 LPA along with standard company benefits."
+
+                )
+
+            elif scenario == "Project Budget Allocation":
+
+                self.conversation_manager.add_message(
+
+                    session_id,
+
+                    "Budget Manager",
+
+                    "The total project budget available is ₹50 lakh. Please present your department's budget requirements so we can reach a fair allocation."
 
                 )
 
@@ -513,6 +544,24 @@ class NegotiationOrchestrator:
 
                 candidate_reply = candidate_response["message"]
 
+                if (
+                    "RESOURCE_EXHAUSTED" in candidate_reply
+                    or "429" in candidate_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Simulation stopped because the Gemini API quota was exceeded."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "quota_exceeded"
+                    )
+
+                    break
+
                 self.conversation_manager.add_message(
                     session_id,
                     "Candidate",
@@ -544,6 +593,24 @@ class NegotiationOrchestrator:
                 )
 
                 hr_reply = hr_response["message"]
+
+                if (
+                    "RESOURCE_EXHAUSTED" in hr_reply
+                    or "429" in hr_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Simulation stopped because the Gemini API quota was exceeded."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "quota_exceeded"
+                    )
+
+                    break
 
                 self.conversation_manager.add_message(
                     session_id,
@@ -585,7 +652,137 @@ class NegotiationOrchestrator:
                     )
 
                     break            
-        
+
+
+
+            elif scenario == "Project Budget Allocation":
+
+                department_response = self.department_agent.negotiate(
+                    conversation,
+                    scenario
+                )
+
+                department_reply = department_response["message"]
+
+                print("\nDepartment Reply:", department_reply)
+                print(
+                    "Agreement Detected:",
+                    self.agreement_detector.is_agreement(department_reply)
+                )
+
+                if (
+                    "RESOURCE_EXHAUSTED" in department_reply
+                    or "429" in department_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Simulation stopped because the Gemini API quota was exceeded."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "quota_exceeded"
+                    )
+
+                    break
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "Department Representative",
+                    department_reply
+                )
+
+                if self.agreement_detector.is_agreement(department_reply):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation completed successfully. Agreement reached."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "agreement_reached"
+                    )
+
+                    break
+
+                conversation = self.conversation_manager.get_conversation(
+                    session_id
+                )
+
+                budget_response = self.budget_agent.negotiate(
+                    conversation,
+                    scenario
+                )
+
+                budget_reply = budget_response["message"]
+
+                print("\nBudget Reply:", budget_reply)
+                print(
+                    "Agreement Detected:",
+                    self.agreement_detector.is_agreement(budget_reply)
+                )
+
+                if (
+                    "RESOURCE_EXHAUSTED" in budget_reply
+                    or "429" in budget_reply
+                ):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Simulation stopped because the Gemini API quota was exceeded."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "quota_exceeded"
+                    )
+
+                    break
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "Budget Manager",
+                    budget_reply
+                )
+
+                if self.agreement_detector.is_agreement(budget_reply):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation completed successfully. Agreement reached."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "agreement_reached"
+                    )
+
+                    break
+
+                conversation = self.conversation_manager.get_conversation(
+                    session_id
+                )
+
+                if self.deadlock_detector.is_deadlock(conversation):
+
+                    self.conversation_manager.add_message(
+                        session_id,
+                        "System",
+                        "Negotiation ended due to deadlock."
+                    )
+
+                    self.session_manager.update_status(
+                        session_id,
+                        "deadlock"
+                    )
+
+                    break
 
 
 

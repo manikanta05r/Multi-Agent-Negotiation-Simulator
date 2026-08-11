@@ -1,16 +1,6 @@
-<<<<<<< HEAD
 __pycache__/
 *.pyc
-venv/
-<<<<<<< HEAD
-=======
 venv/
 .env
-__pycache__/
-*.pyc
 .vscode/
 .idea/
->>>>>>> origin/backend
-=======
-.env
->>>>>>> ai

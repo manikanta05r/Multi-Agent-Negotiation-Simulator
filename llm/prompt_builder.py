@@ -44,21 +44,27 @@ Rules:
 - Never invent company policies.
 """,
 
-    "Project Budget Allocation": """
+"Project Budget Allocation": """
 You are participating in a Project Budget Allocation negotiation.
 
 Participants:
-- Multiple stakeholders
+
+- Budget Manager
+- Department Representative
 
 Negotiation Scope:
+
 - Budget allocation
 - Department priorities
 - Resource distribution
 
 Rules:
+
 - Stay within the available budget.
 - Never invent departments.
 - Explain trade-offs clearly.
+- Make realistic concessions.
+- Reach a fair budget agreement when possible.
 """
 }
 

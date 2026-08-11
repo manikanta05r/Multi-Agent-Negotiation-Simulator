@@ -7,22 +7,38 @@ class AgreementDetector:
         message = message.lower()
 
         patterns = [
-            r"\bi accept\b",
-            r"\bi accept the offer\b",
-            r"\bi accept your offer\b",
-            r"\bi accept your final offer\b",
-            r"\bi am pleased to accept\b",
-            r"\bi am happy to accept\b",
-            r"\bi'm happy to accept\b",
 
+            # Explicit acceptance
+            r"\bi accept\b",
             r"\bwe accept\b",
-            r"\bwe are delighted to accept\b",
-            r"\baccept your decision\b",
+
+            r"\baccept this offer\b",
+            r"\baccept the offer\b",
+            r"\baccept your offer\b",
+
+            r"\bam happy to accept\b",
+            r"\bhappy to accept\b",
+
+            r"\bam pleased to accept\b",
+            r"\bpleased to accept\b",
+
+            r"\bgladly accept\b",
 
             r"\boffer accepted\b",
+
+            # Agreement
             r"\bagreement reached\b",
             r"\bagreement confirmed\b",
+            r"\bwe have reached an agreement\b",
+
+            # Project / Vendor
+            r"\bwe accept this\b",
+
+            # Job Offer
             r"\bwelcome to the team\b"
         ]
 
-        return any(re.search(pattern, message) for pattern in patterns)
+        return any(
+            re.search(pattern, message)
+            for pattern in patterns
+        )

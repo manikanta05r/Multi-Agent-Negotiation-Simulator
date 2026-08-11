@@ -24,6 +24,16 @@ show_navbar()
 # SESSION STATE
 # ============================================================
 
+scenario = st.session_state.get("scenario", "")
+mode = st.session_state.get("mode", "AI vs AI")
+max_rounds = st.session_state.get("max_rounds", 10)
+session_id = st.session_state.get("session_id", "")
+
+if not session_id:
+    st.error("No active negotiation found.")
+    st.stop()
+
+
 defaults = {
     "simulation_messages": [],
     "simulation_started": False,
@@ -106,6 +116,227 @@ st.divider()
 
 
 # ============================================================
+# AUTOMATIC BACKEND NEGOTIATION
+# ============================================================
+
+if (
+    session_id
+    and not st.session_state.simulation_started
+):
+
+    try:
+
+        st.session_state.simulation_status = "Negotiating"
+        st.session_state.active_agent = agent1_name
+
+        response = requests.post(
+            "http://127.0.0.1:8000/simulate-negotiation",
+            json={
+                "session_id": session_id
+            },
+            timeout=300
+        )
+
+        if response.status_code == 200:
+
+            data = response.json()
+
+            st.session_state.simulation_started = True
+
+            messages = data.get(
+                "conversation",
+                []
+            )
+
+            st.session_state.simulation_messages = messages
+
+            status = data.get(
+                "status",
+                "running"
+            )
+
+            rounds = data.get(
+                "rounds_completed",
+                0
+            )
+
+            st.session_state.simulation_round = rounds
+
+            if status == "agreement_reached":
+
+                st.session_state.simulation_status = (
+                    "Agreement Reached"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            elif status == "deadlock":
+
+                st.session_state.simulation_status = (
+                    "Deadlock"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            elif status == "quota_exceeded":
+
+                st.session_state.simulation_status = (
+                    "Quota Exceeded"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            elif status == "max_rounds_reached":
+
+                st.session_state.simulation_status = (
+                    "Maximum Rounds Reached"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            else:
+
+                st.session_state.simulation_status = (
+                    "Negotiating"
+                )
+
+        else:
+
+            st.error(
+                f"Backend error: {response.text}"
+            )
+
+            st.session_state.simulation_started = True
+            st.session_state.simulation_finished = True
+
+    except requests.exceptions.RequestException as e:
+
+        st.error(
+            f"Unable to connect to backend.\n\n{e}"
+        )
+
+        st.session_state.simulation_started = True
+        st.session_state.simulation_finished = True
+
+
+# ============================================================
+# GET LATEST NEGOTIATION STATE
+# ============================================================
+
+if session_id:
+
+    try:
+
+        response = requests.get(
+            f"http://127.0.0.1:8000/negotiation/{session_id}",
+            timeout=10
+        )
+
+        if response.status_code == 200:
+
+            data = response.json()
+
+            # ------------------------------------------------
+            # ACTIVE AGENT
+            # ------------------------------------------------
+
+            active_agent = data.get(
+                "active_agent",
+                None
+            )
+
+            if not st.session_state.simulation_finished:
+                st.session_state.active_agent = active_agent
+
+
+            # ------------------------------------------------
+            # ROUND
+            # ------------------------------------------------
+
+            backend_round = data.get(
+                "round",
+                st.session_state.simulation_round
+            )
+
+            st.session_state.simulation_round = backend_round
+
+
+            # ------------------------------------------------
+            # MESSAGES
+            # ------------------------------------------------
+
+            messages = data.get(
+                "messages",
+                []
+            )
+
+            if messages:
+                st.session_state.simulation_messages = messages
+
+
+            # ------------------------------------------------
+            # STATUS
+            # ------------------------------------------------
+
+            backend_status = data.get(
+                "status",
+                "in_progress"
+            )
+
+            if backend_status == "agreement_reached":
+
+                st.session_state.simulation_status = (
+                    "Agreement Reached"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            elif backend_status == "deadlock":
+
+                st.session_state.simulation_status = (
+                    "Deadlock"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            elif backend_status == "quota_exceeded":
+
+                st.session_state.simulation_status = (
+                    "Quota Exceeded"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            elif backend_status in (
+                "completed",
+                "max_rounds_reached"
+            ):
+
+                st.session_state.simulation_status = (
+                    "Maximum Rounds Reached"
+                )
+
+                st.session_state.simulation_finished = True
+                st.session_state.active_agent = None
+
+            elif not st.session_state.simulation_finished:
+
+                st.session_state.simulation_status = (
+                    "Negotiating"
+                )
+
+    except requests.exceptions.RequestException:
+        pass
+
+
+# ============================================================
 # NEGOTIATION STATUS
 # ============================================================
 
@@ -123,10 +354,16 @@ elif status == "Deadlock":
         "⚠️ Negotiation ended due to deadlock."
     )
 
-elif status == "Completed":
+elif status == "Quota Exceeded":
 
-    st.success(
-        "🏁 Negotiation Completed"
+    st.error(
+        "⛔ Gemini API quota exceeded."
+    )
+
+elif status == "Maximum Rounds Reached":
+
+    st.warning(
+        "⚠️ Maximum negotiation rounds reached."
     )
 
 else:
@@ -164,7 +401,10 @@ with agent1_col:
 
         st.divider()
 
-        if st.session_state.active_agent == agent1_name:
+        if st.session_state.active_agent in (
+            agent1_name,
+            agent1_role
+        ):
 
             st.info(
                 "🟡 Thinking..."
@@ -225,7 +465,10 @@ with agent2_col:
 
         st.divider()
 
-        if st.session_state.active_agent == agent2_name:
+        if st.session_state.active_agent in (
+            agent2_name,
+            agent2_role
+        ):
 
             st.info(
                 "🟡 Thinking..."
@@ -308,7 +551,6 @@ st.subheader(
     "💬 Negotiation Conversation"
 )
 
-
 if not st.session_state.simulation_messages:
 
     st.info(
@@ -336,7 +578,9 @@ else:
 
         if round_number:
 
-            round_text = f" • Round {round_number}"
+            round_text = (
+                f" • Round {round_number}"
+            )
 
         else:
 
@@ -349,121 +593,6 @@ else:
             )
 
             st.write(text)
-
-
-# ============================================================
-# AUTOMATIC BACKEND UPDATE
-# ============================================================
-
-if (
-    session_id
-    and not st.session_state.simulation_finished
-):
-
-    try:
-
-        response = requests.get(
-            f"http://127.0.0.1:8000/negotiation/{session_id}",
-            timeout=10
-        )
-
-        if response.status_code == 200:
-
-            data = response.json()
-
-
-            # ------------------------------------------------
-            # ACTIVE AGENT
-            # ------------------------------------------------
-
-            st.session_state.active_agent = data.get(
-                "active_agent",
-                None
-            )
-
-
-            # ------------------------------------------------
-            # ROUND
-            # ------------------------------------------------
-
-            st.session_state.simulation_round = data.get(
-                "round",
-                st.session_state.simulation_round
-            )
-
-
-            # ------------------------------------------------
-            # MESSAGES
-            # ------------------------------------------------
-
-            messages = data.get(
-                "messages",
-                []
-            )
-
-            if messages:
-
-                st.session_state.simulation_messages = messages
-
-
-            # ------------------------------------------------
-            # STATUS
-            # ------------------------------------------------
-
-            backend_status = data.get(
-                "status",
-                "negotiating"
-            )
-
-            if backend_status == "agreement_reached":
-
-                st.session_state.simulation_status = (
-                    "Agreement Reached"
-                )
-
-                st.session_state.simulation_finished = True
-
-                st.session_state.active_agent = None
-
-
-            elif backend_status == "deadlock":
-
-                st.session_state.simulation_status = (
-                    "Deadlock"
-                )
-
-                st.session_state.simulation_finished = True
-
-                st.session_state.active_agent = None
-
-
-            elif backend_status in (
-                "completed",
-                "max_rounds_reached"
-            ):
-
-                st.session_state.simulation_status = (
-                    "Completed"
-                )
-
-                st.session_state.simulation_finished = True
-
-                st.session_state.active_agent = None
-
-
-            else:
-
-                st.session_state.simulation_status = (
-                    "Negotiating"
-                )
-
-
-    except requests.exceptions.RequestException:
-
-        # Backend may still be under development.
-        # Keep the UI running without crashing.
-
-        pass
 
 
 # ============================================================
@@ -487,7 +616,6 @@ if (
 st.divider()
 
 back_col, restart_col = st.columns(2)
-
 
 with back_col:
 
