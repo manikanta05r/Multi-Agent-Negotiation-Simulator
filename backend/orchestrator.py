@@ -32,7 +32,9 @@ class NegotiationOrchestrator:
         session_id = self.session_manager.create_session(
             request.scenario,
             request.mode,
-            request.max_rounds
+            request.max_rounds,
+            request.agent1_config,
+            request.agent2_config
         )
 
         self.conversation_manager.create_conversation(session_id)
@@ -319,6 +321,9 @@ class NegotiationOrchestrator:
         scenario = session["scenario"]
         mode = session["mode"]
         max_rounds = session["max_rounds"]
+        agent1_config = session.get("agent1_config")
+        agent2_config = session.get("agent2_config")
+
 
         # -----------------------------
         # Opening Message
@@ -328,17 +333,32 @@ class NegotiationOrchestrator:
 
             if scenario == "Vendor Pricing Negotiation":
 
+
+                supplier_price = (
+                    agent2_config.starting_target
+                    if agent2_config
+                    else 105000
+                )
+
                 self.conversation_manager.add_message(
 
                     session_id,
 
                     "Supplier",
 
-                    "We are pleased to offer 100 laptops at ₹1,05,000 per unit with standard warranty and delivery."
+                     f"We are pleased to offer 100 laptops at ₹{supplier_price:,.0f} per unit with standard warranty and delivery."
 
                 )
 
             elif scenario == "Job Offer Negotiation":
+
+                hr_salary = (
+                        agent2_config.starting_target
+                        if agent2_config
+                        else 1000000
+                    )
+                
+                hr_salary_lpa = hr_salary / 100000
 
                 self.conversation_manager.add_message(
 
@@ -346,7 +366,7 @@ class NegotiationOrchestrator:
 
                     "HR Manager",
 
-                    "We are pleased to offer you a position with a salary of ₹10 LPA along with standard company benefits."
+                    f"We are pleased to offer you a position with a salary of ₹{hr_salary_lpa:g} LPA along with standard company benefits."
 
                 )
 
@@ -390,7 +410,8 @@ class NegotiationOrchestrator:
 
                 buyer_response = self.buyer_agent.negotiate(
                     conversation,
-                    scenario
+                    scenario,
+                    agent1_config
                 )
 
                 buyer_reply = buyer_response["message"]
@@ -454,7 +475,8 @@ class NegotiationOrchestrator:
 
                 supplier_response = self.supplier_agent.negotiate(
                     conversation,
-                    scenario
+                    scenario,
+                    agent2_config
                 )
 
                 supplier_reply = supplier_response["message"]
@@ -539,7 +561,8 @@ class NegotiationOrchestrator:
 
                 candidate_response = self.candidate_agent.negotiate(
                     conversation,
-                    scenario
+                    scenario,
+                    agent1_config
                 )
 
                 candidate_reply = candidate_response["message"]
@@ -589,7 +612,8 @@ class NegotiationOrchestrator:
 
                 hr_response = self.hr_agent.negotiate(
                     conversation,
-                    scenario
+                    scenario,
+                    agent2_config
                 )
 
                 hr_reply = hr_response["message"]

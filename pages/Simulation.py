@@ -157,8 +157,20 @@ if (
 
             rounds = data.get(
                 "rounds_completed",
-                0
             )
+            if rounds is None:
+
+                conversation_rounds = [
+                    msg for msg in messages
+                    if msg.get("speaker") in [
+                        agent1_name,
+                        agent1_role,
+                        agent2_name,
+                        agent2_role
+                    ]
+                ]
+
+                rounds = len(conversation_rounds) // 2
 
             st.session_state.simulation_round = rounds
 

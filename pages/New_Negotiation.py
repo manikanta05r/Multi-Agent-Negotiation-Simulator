@@ -68,6 +68,30 @@ scenarios = [
     "Project Budget Allocation"
 ]
 
+SCENARIO_AGENTS = {
+    "Vendor Pricing Negotiation": {
+        "agent1_name": "Buyer",
+        "agent1_role": "Buyer",
+        "agent2_name": "Supplier",
+        "agent2_role": "Supplier",
+    },
+
+    "Job Offer Negotiation": {
+        "agent1_name": "Candidate",
+        "agent1_role": "Candidate",
+        "agent2_name": "HR Manager",
+        "agent2_role": "HR Manager",
+    },
+
+    "Project Budget Allocation": {
+        "agent1_name": "Department Representative",
+        "agent1_role": "Department Representative",
+        "agent2_name": "Budget Manager",
+        "agent2_role": "Budget Manager",
+    }
+}
+
+
 scenario = st.selectbox(
     "Negotiation Scenario",
     scenarios,
@@ -79,9 +103,19 @@ scenario = st.selectbox(
     )
 )
 
-st.session_state.scenario = scenario
 
-st.divider()
+if st.session_state.get("scenario") != scenario:
+
+    st.session_state.agent1_name = SCENARIO_AGENTS[scenario]["agent1_name"]
+    st.session_state.agent1_role = SCENARIO_AGENTS[scenario]["agent1_role"]
+
+    st.session_state.agent2_name = SCENARIO_AGENTS[scenario]["agent2_name"]
+    st.session_state.agent2_role = SCENARIO_AGENTS[scenario]["agent2_role"]
+
+    st.session_state.scenario = scenario
+
+
+scenario_agents = SCENARIO_AGENTS[scenario]
 
 
 # ============================================================
@@ -291,26 +325,14 @@ if st.session_state.mode == "Simulation":
             st.divider()
 
             agent1_name = st.text_input(
-                "Agent 1 Name",
-                value="Buyer"
-                if scenario == "Vendor Pricing Negotiation"
-                else (
-                    "Candidate"
-                    if scenario == "Job Offer Negotiation"
-                    else "Department A"
-                ),
+                "Agent Name",
+                value=scenario_agents["agent1_name"],
                 key="agent1_name"
             )
 
             agent1_role = st.text_input(
-                "Agent 1 Role",
-                value="Buyer"
-                if scenario == "Vendor Pricing Negotiation"
-                else (
-                    "Candidate"
-                    if scenario == "Job Offer Negotiation"
-                    else "Department Representative"
-                ),
+                "Role",
+                value=scenario_agents["agent1_role"],
                 key="agent1_role"
             )
 
@@ -325,6 +347,7 @@ if st.session_state.mode == "Simulation":
                 ],
                 key="agent1_strategy"
             )
+
 
             st.markdown(f"**{field1_label}**")
 
@@ -382,9 +405,7 @@ if st.session_state.mode == "Simulation":
 
             agent1_instructions = st.text_area(
                 "Custom Instructions",
-                placeholder=(
-                    "Optional instructions for Agent 1..."
-                ),
+                placeholder="Optional instructions for Agent 1...",
                 height=100,
                 key="agent1_instructions"
             )
@@ -407,28 +428,18 @@ if st.session_state.mode == "Simulation":
             st.divider()
 
             agent2_name = st.text_input(
-                "Agent 2 Name",
-                value="Supplier"
-                if scenario == "Vendor Pricing Negotiation"
-                else (
-                    "HR Manager"
-                    if scenario == "Job Offer Negotiation"
-                    else "Department B"
-                ),
+                "Agent Name",
+                value=scenario_agents["agent2_name"],
                 key="agent2_name"
             )
 
             agent2_role = st.text_input(
-                "Agent 2 Role",
-                value="Supplier"
-                if scenario == "Vendor Pricing Negotiation"
-                else (
-                    "HR Manager"
-                    if scenario == "Job Offer Negotiation"
-                    else "Department Representative"
-                ),
+                "Role",
+                value=scenario_agents["agent2_role"],
                 key="agent2_role"
             )
+
+
 
             agent2_strategy = st.selectbox(
                 "Negotiation Strategy",
@@ -442,6 +453,7 @@ if st.session_state.mode == "Simulation":
                 index=1,
                 key="agent2_strategy"
             )
+
 
             st.markdown(f"**{field1_label}**")
 
@@ -507,6 +519,7 @@ if st.session_state.mode == "Simulation":
             )
 
 
+
 # ============================================================
 # PRACTICE MODE — ROLE
 # ============================================================
@@ -542,6 +555,26 @@ elif st.session_state.mode == "Practice":
         roles,
         horizontal=True
     )
+
+    st.session_state.agent1_config = {
+        "name": agent1_name,
+        "role": agent1_role,
+        "strategy": agent1_strategy,
+        "scenario": scenario,
+        "starting_target": agent1_field1,
+        "reservation_price": agent1_field2,
+        "instructions": agent1_instructions
+    }
+
+    st.session_state.agent2_config = {
+        "name": agent2_name,
+        "role": agent2_role,
+        "strategy": agent2_strategy,
+        "scenario": scenario,
+        "starting_target": agent2_field1,
+        "reservation_price": agent2_field2,
+        "instructions": agent2_instructions
+    }
 
 
 # ============================================================
@@ -868,20 +901,13 @@ if st.button(
         # ----------------------------------------------------
 
         st.session_state.agent1_config = {
-
             "name": agent1_name,
-
             "role": agent1_role,
-
             "strategy": agent1_strategy,
-
             "scenario": scenario,
-
-            "starting_value": agent1_field1,
-
-            "reservation_value": agent1_field2,
-
-            "custom_instructions": agent1_instructions
+            "starting_target": agent1_field1,
+            "reservation_price": agent1_field2,
+            "instructions": agent1_instructions
         }
 
 
@@ -890,20 +916,13 @@ if st.button(
         # ----------------------------------------------------
 
         st.session_state.agent2_config = {
-
             "name": agent2_name,
-
             "role": agent2_role,
-
             "strategy": agent2_strategy,
-
             "scenario": scenario,
-
-            "starting_value": agent2_field1,
-
-            "reservation_value": agent2_field2,
-
-            "custom_instructions": agent2_instructions
+            "starting_target": agent2_field1,
+            "reservation_price": agent2_field2,
+            "instructions": agent2_instructions
         }
 
 

@@ -69,7 +69,14 @@ Rules:
 }
 
 
-def build_prompt(role, goal, constraints, scenario, conversation_history):
+def build_prompt(
+    role,
+    goal,
+    constraints,
+    scenario,
+    conversation_history,
+    agent_config=None
+):
 
     scenario_context = SCENARIO_CONTEXT.get(
         scenario,
@@ -83,47 +90,110 @@ def build_prompt(role, goal, constraints, scenario, conversation_history):
             f"{msg['speaker']}: {msg['message']}\n"
         )
 
+    # Dynamic agent configuration
+    agent_configuration = ""
+
+
+    if agent_config:
+
+        strategy = agent_config.strategy
+
+        starting_target = agent_config.starting_target
+
+        reservation_price = agent_config.reservation_price
+
+        instructions = agent_config.instructions
+
+        # Job Offer salary is entered in rupees
+        # but negotiated/displayed in LPA
+        if scenario == "Job Offer Negotiation":
+
+            starting_target_display = (
+                f"₹{starting_target / 100000:g} LPA"
+            )
+
+            reservation_price_display = (
+                f"₹{reservation_price / 100000:g} LPA"
+            )
+
+        else:
+
+            starting_target_display = (
+                f"₹{starting_target:,.0f}"
+            )
+
+            reservation_price_display = (
+                f"₹{reservation_price:,.0f}"
+            )
+
+        agent_configuration = f"""
+    Negotiation Strategy:
+    {strategy}
+
+    Starting Target:
+    {starting_target_display}
+
+    Reservation Price / Walk-Away Limit:
+    {reservation_price_display}
+
+    Custom Instructions:
+    {instructions}
+    """
+
     prompt = f"""
-You are a professional AI Negotiation Agent.
+    You are a professional AI Negotiation Agent.
 
-Scenario:
-{scenario}
+    Scenario:
+    {scenario}
 
-Scenario Instructions:
-{scenario_context}
+    Scenario Instructions:
+    {scenario_context}
 
-Role:
-{role}
+    Role:
+    {role}
 
-Goal:
-{goal}
+    Goal:
+    {goal}
 
-Constraints:
-{constraints}
+    Agent Configuration:
+    {agent_configuration}
 
-Conversation History:
-{conversation_text}
+    Constraints:
+    {constraints}
 
-Negotiation Rules:
-1. Stay in your assigned role.
-2. Never contradict previous messages.
-3. Use ONLY facts already mentioned in the conversation.
-4. Never change the product, salary, budget, currency or negotiation topic.
-5. Make small, realistic concessions. Never increase your own concession after making a better offer.
-6. Before replying, review your previous responses and avoid repeating the same price, proposal or wording.
-7. Every response must move the negotiation forward by doing exactly one of these:
-   - Make a counteroffer
-   - Accept the offer
-   - Reject with a reason
-   - Ask for clarification
-8. If your previous two responses communicated the same proposal, choose a different action instead of repeating it.
-9. If both parties are within 1–2% of each other, accept the offer.
-10. If you have already made your final offer, either accept the other party's close offer or politely end the negotiation.
-11. Keep responses to 2–3 sentences.
-12. Never mention you are an AI.
-13. Never repeat the same numerical offer unless you explicitly say it is your final offer.
-14. When an agreement is reached, respond with a short confirmation and stop negotiating.
-Response:
-"""
+    Conversation History:
+    {conversation_text}
+
+    Negotiation Rules:
+
+    1. Stay in your assigned role.
+    2. Follow your Starting Target and Reservation Price / Walk-Away Limit.
+    3. Never accept or propose a value beyond your allowed negotiation boundary.
+    4. Use the negotiation strategy provided in your Agent Configuration.
+    5. Follow the Custom Instructions provided for your agent.
+    6. Never contradict previous messages.
+    7. Use the scenario data and agent configuration provided to you.
+    8. Never invent product, salary, budget, quantity, currency, or other negotiation facts.
+    9. Make small, realistic concessions.
+    10. Before replying, review previous responses and avoid repeating the same offer.
+    11. Every response must move the negotiation forward by doing exactly one of these:
+        - Make a counteroffer
+        - Accept the offer
+        - Reject with a reason
+        - Ask for clarification
+    12. If both parties are within 1–2% of each other, consider accepting.
+    13. If you have already made your final offer, either accept a close offer or politely end the negotiation.
+    14. Keep responses to 2–3 sentences.
+    15. Never mention you are an AI.
+    16. Never repeat the same numerical offer unless you explicitly say it is your final offer.
+    17. Once an agreement is reached, respond with a short confirmation and stop negotiating.
+    For Job Offer Negotiation:
+    - Treat the Reservation Price / Walk-Away Limit as a hard boundary.
+    - If you are the Candidate, never accept a salary below your reservation price.
+    - If the other party offers below your reservation price, reject it or make a counteroffer at or above your reservation price.
+    - Never claim that an offer below your reservation price is acceptable.
+
+    Response:
+    """
 
     return prompt

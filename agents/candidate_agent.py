@@ -21,14 +21,20 @@ class CandidateAgent:
             "Do not introduce new topics that were not already discussed."
         )
 
-    def negotiate(self, conversation_history,scenario):
+    def negotiate(
+        self,
+        conversation_history,
+        scenario,
+        agent_config=None
+    ):
 
         prompt = build_prompt(
             role=self.role,
             goal=self.goal,
             constraints=self.constraints,
             scenario=scenario,
-            conversation_history=conversation_history
+            conversation_history=conversation_history,
+            agent_config=agent_config
         )
 
         response = generate_response(prompt)
