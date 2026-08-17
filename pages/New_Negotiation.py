@@ -91,7 +91,28 @@ SCENARIO_AGENTS = {
     }
 }
 
+SCENARIO_DEFAULTS = {
+    "Vendor Pricing Negotiation": {
+        "agent1_starting": 95000,
+        "agent1_reservation": 100000,
+        "agent2_starting": 100000,
+        "agent2_reservation": 95000,
+    },
 
+    "Job Offer Negotiation": {
+        "agent1_starting": 1500000,
+        "agent1_reservation": 1200000,
+        "agent2_starting": 1000000,
+        "agent2_reservation": 1200000,
+    },
+
+    "Project Budget Allocation": {
+        "agent1_starting": 3000000,
+        "agent1_reservation": 2400000,
+        "agent2_starting": 2200000,
+        "agent2_reservation": 2400000,
+    }
+}
 scenario = st.selectbox(
     "Negotiation Scenario",
     scenarios,
@@ -106,16 +127,57 @@ scenario = st.selectbox(
 
 if st.session_state.get("scenario") != scenario:
 
-    st.session_state.agent1_name = SCENARIO_AGENTS[scenario]["agent1_name"]
-    st.session_state.agent1_role = SCENARIO_AGENTS[scenario]["agent1_role"]
+    st.session_state.agent1_name = (
+        SCENARIO_AGENTS[scenario]["agent1_name"]
+    )
 
-    st.session_state.agent2_name = SCENARIO_AGENTS[scenario]["agent2_name"]
-    st.session_state.agent2_role = SCENARIO_AGENTS[scenario]["agent2_role"]
+    st.session_state.agent1_role = (
+        SCENARIO_AGENTS[scenario]["agent1_role"]
+    )
+
+    st.session_state.agent2_name = (
+        SCENARIO_AGENTS[scenario]["agent2_name"]
+    )
+
+    st.session_state.agent2_role = (
+        SCENARIO_AGENTS[scenario]["agent2_role"]
+    )
+
+    # Reset negotiation values for the selected scenario
+    st.session_state.agent1_starting_target = float(
+        SCENARIO_DEFAULTS[scenario]["agent1_starting"]
+    )
+
+    st.session_state.agent1_reservation_price = float(
+        SCENARIO_DEFAULTS[scenario]["agent1_reservation"]
+    )
+
+    st.session_state.agent2_starting_target = float(
+        SCENARIO_DEFAULTS[scenario]["agent2_starting"]
+    )
+
+    st.session_state.agent2_reservation_price = float(
+        SCENARIO_DEFAULTS[scenario]["agent2_reservation"]
+    )
 
     st.session_state.scenario = scenario
 
 
 scenario_agents = SCENARIO_AGENTS[scenario]
+
+if scenario == "Project Budget Allocation":
+
+    project_budget = st.number_input(
+        "Total Project Budget",
+        min_value=0.0,
+        step=100000.0,
+        value=5000000.0,
+        key="project_total_budget"
+    )
+
+else:
+
+    project_budget = None
 
 
 # ============================================================
@@ -215,12 +277,36 @@ elif st.session_state.mode == "Practice":
         "✅ Practice Mode Selected — Human vs AI"
     )
 
+<<<<<<< HEAD
 
 # ============================================================
 # SCENARIO-SPECIFIC CONFIGURATION
 # ============================================================
 
 if scenario == "Vendor Pricing Negotiation":
+=======
+    # Available roles for each scenario
+    if scenario == "Vendor Pricing Negotiation":
+
+        roles = [
+            "Buyer",
+            "Supplier"
+        ]
+
+    elif scenario == "Job Offer Negotiation":
+
+        roles = [
+            "Candidate",
+            "HR Manager"
+        ]
+
+    else:
+
+        roles = [
+            "Department Representative",
+            "Budget Manager"
+        ]
+>>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
 
     field1_label = "Starting Target"
     field2_label = "Reservation Price / Walk Away"
@@ -287,6 +373,164 @@ else:
     field2_prefix = "₹"
 
 
+    # ========================================================
+    # DETERMINE THE AI'S ROLE
+    # ========================================================
+
+    if role == scenario_agents["agent1_role"]:
+
+        ai_agent_name = scenario_agents["agent2_name"]
+        ai_agent_role = scenario_agents["agent2_role"]
+
+        ai_starting_target = (
+            SCENARIO_DEFAULTS[scenario]["agent2_starting"]
+        )
+
+        ai_reservation_price = (
+            SCENARIO_DEFAULTS[scenario]["agent2_reservation"]
+        )
+
+    else:
+
+        ai_agent_name = scenario_agents["agent1_name"]
+        ai_agent_role = scenario_agents["agent1_role"]
+
+        ai_starting_target = (
+            SCENARIO_DEFAULTS[scenario]["agent1_starting"]
+        )
+
+        ai_reservation_price = (
+            SCENARIO_DEFAULTS[scenario]["agent1_reservation"]
+        )
+
+
+    # ========================================================
+    # AI AGENT CONFIGURATION
+    # ========================================================
+
+    st.markdown(
+        '<div class="section-title">🤖 AI Agent Configuration</div>',
+        unsafe_allow_html=True
+    )
+
+    st.markdown(
+        '<div class="section-description">'
+        'The AI automatically takes the opposite role from you.'
+        '</div>',
+        unsafe_allow_html=True
+    )
+
+    with st.container(border=True):
+
+        st.markdown(
+            f"### 🤖 {ai_agent_name}"
+        )
+
+        st.write(
+            f"**Role:** {ai_agent_role}"
+        )
+
+        ai_strategy = st.selectbox(
+            "Negotiation Strategy",
+            [
+                "Collaborative",
+                "Competitive",
+                "Assertive",
+                "Compromising",
+                "Flexible"
+            ],
+            key="practice_ai_strategy"
+        )
+
+        ai_starting_target = st.number_input(
+            "Starting Target",
+            min_value=0.0,
+            step=1000.0,
+            value=float(ai_starting_target),
+            key="practice_ai_starting_target"
+        )
+
+        ai_reservation_price = st.number_input(
+            "Reservation Price – Walk Away",
+            min_value=0.0,
+            step=1000.0,
+            value=float(ai_reservation_price),
+            key="practice_ai_reservation_price"
+        )
+
+        ai_instructions = st.text_area(
+            "Custom Instructions",
+            placeholder="Optional instructions for the AI agent...",
+            height=120,
+            key="practice_ai_instructions"
+        )
+
+
+    # ========================================================
+    # BUILD PRACTICE AGENT CONFIGURATIONS
+    # ========================================================
+
+    if role == scenario_agents["agent1_role"]:
+
+        human_config = {
+            "name": scenario_agents["agent1_name"],
+            "role": scenario_agents["agent1_role"],
+            "strategy": "Collaborative",
+            "starting_target": float(
+                SCENARIO_DEFAULTS[scenario]["agent1_starting"]
+            ),
+            "reservation_price": float(
+                SCENARIO_DEFAULTS[scenario]["agent1_reservation"]
+            ),
+            "instructions": ""
+        }
+
+        ai_config = {
+            "name": ai_agent_name,
+            "role": ai_agent_role,
+            "strategy": ai_strategy,
+            "starting_target": float(ai_starting_target),
+            "reservation_price": float(ai_reservation_price),
+            "instructions": ai_instructions
+        }
+
+    else:
+
+        human_config = {
+            "name": scenario_agents["agent2_name"],
+            "role": scenario_agents["agent2_role"],
+            "strategy": "Collaborative",
+            "starting_target": float(
+                SCENARIO_DEFAULTS[scenario]["agent2_starting"]
+            ),
+            "reservation_price": float(
+                SCENARIO_DEFAULTS[scenario]["agent2_reservation"]
+            ),
+            "instructions": ""
+        }
+
+        ai_config = {
+            "name": ai_agent_name,
+            "role": ai_agent_role,
+            "strategy": ai_strategy,
+            "starting_target": float(ai_starting_target),
+            "reservation_price": float(ai_reservation_price),
+            "instructions": ai_instructions
+        }
+
+
+    # Store them according to the scenario's original Agent 1 / Agent 2 order
+    if role == scenario_agents["agent1_role"]:
+
+        st.session_state.agent1_config = human_config
+        st.session_state.agent2_config = ai_config
+
+    else:
+
+        st.session_state.agent1_config = ai_config
+        st.session_state.agent2_config = human_config
+
+
 # ============================================================
 # AI VS AI — AGENT CONFIGURATION
 # ============================================================
@@ -348,6 +592,7 @@ if st.session_state.mode == "Simulation":
                 key="agent1_strategy"
             )
 
+<<<<<<< HEAD
 
             st.markdown(f"**{field1_label}**")
 
@@ -402,6 +647,28 @@ if st.session_state.mode == "Simulation":
                 )
 
             st.caption(field2_help)
+=======
+            agent1_starting_target = st.number_input(
+                "Starting Target",
+                min_value=0.0,
+                step=1000.0,
+                value=float(
+                    SCENARIO_DEFAULTS[scenario]["agent1_starting"]
+                ),
+                key="agent1_starting_target"
+            )
+
+
+            agent1_reservation_price = st.number_input(
+                "Reservation Price – Walk Away",
+                min_value=0.0,
+                step=1000.0,
+                value=float(
+                    SCENARIO_DEFAULTS[scenario]["agent1_reservation"]
+                ),
+                key="agent1_reservation_price"
+            )
+>>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
 
             agent1_instructions = st.text_area(
                 "Custom Instructions",
@@ -453,6 +720,7 @@ if st.session_state.mode == "Simulation":
                 index=1,
                 key="agent2_strategy"
             )
+<<<<<<< HEAD
 
 
             st.markdown(f"**{field1_label}**")
@@ -508,6 +776,27 @@ if st.session_state.mode == "Simulation":
                 )
 
             st.caption(field2_help)
+=======
+            agent2_starting_target = st.number_input(
+                "Starting Target",
+                min_value=0.0,
+                step=1000.0,
+                value=float(
+                    SCENARIO_DEFAULTS[scenario]["agent2_starting"]
+                ),
+                key="agent2_starting_target"
+            )
+
+            agent2_reservation_price = st.number_input(
+                "Reservation Price – Walk Away",
+                min_value=0.0,
+                step=1000.0,
+                value=float(
+                    SCENARIO_DEFAULTS[scenario]["agent2_reservation"]
+                ),
+                key="agent2_reservation_price"
+            )
+>>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
 
             agent2_instructions = st.text_area(
                 "Custom Instructions",
@@ -575,7 +864,6 @@ elif st.session_state.mode == "Practice":
         "reservation_price": agent2_field2,
         "instructions": agent2_instructions
     }
-
 
 # ============================================================
 # STEP 3 — CONFIGURATION
@@ -905,9 +1193,17 @@ if st.button(
             "role": agent1_role,
             "strategy": agent1_strategy,
             "scenario": scenario,
+<<<<<<< HEAD
             "starting_target": agent1_field1,
             "reservation_price": agent1_field2,
             "instructions": agent1_instructions
+=======
+            "mode": backend_mode,
+            "max_rounds": max_rounds,
+            "project_total_budget": project_budget,
+            "agent1_config": st.session_state.agent1_config,
+            "agent2_config": st.session_state.agent2_config
+>>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
         }
 
 

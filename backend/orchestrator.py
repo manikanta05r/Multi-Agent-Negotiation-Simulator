@@ -34,7 +34,8 @@ class NegotiationOrchestrator:
             request.mode,
             request.max_rounds,
             request.agent1_config,
-            request.agent2_config
+            request.agent2_config,
+            request.project_total_budget
         )
 
         self.conversation_manager.create_conversation(session_id)
@@ -123,11 +124,26 @@ class NegotiationOrchestrator:
                 "agreement_reached"
             )
 
+            current_round = sum(
+                1
+                for message in conversation
+                if message["speaker"] in [
+                    "Buyer",
+                    "Supplier",
+                    "Candidate",
+                    "HR Manager",
+                    "Department Representative",
+                    "Budget Manager"
+                ]
+            ) // 2
+
             return {
                 "session_id": request.session_id,
                 "status": "agreement_reached",
                 "speaker": ai_speaker,
-                "message": final_reply
+                "message": final_reply,
+                "round": current_round,
+                "max_rounds": max_rounds
             }
 
 
@@ -140,10 +156,25 @@ class NegotiationOrchestrator:
                 "deadlock"
             )
 
+            current_round = sum(
+                1
+                for message in conversation
+                if message["speaker"] in [
+                    "Buyer",
+                    "Supplier",
+                    "Candidate",
+                    "HR Manager",
+                    "Department Representative",
+                    "Budget Manager"
+                ]
+            ) // 2
+
             return {
                 "session_id": request.session_id,
                 "status": "deadlock",
-                "message": "Negotiation ended without agreement."
+                "message": "Negotiation ended without agreement.",
+                "round": current_round,
+                "max_rounds": max_rounds
             }
 
         # AI Response
@@ -252,11 +283,20 @@ class NegotiationOrchestrator:
 
             }
 
+        negotiation_speakers = [
+            "Buyer",
+            "Supplier",
+            "Candidate",
+            "HR Manager",
+            "Department Representative",
+            "Budget Manager"
+        ]
+
         current_round = sum(
             1
             for message in conversation
-            if message["speaker"] == request.speaker
-        )
+            if message["speaker"] in negotiation_speakers
+        ) // 2
 
         print(f"Current Round: {current_round} / {max_rounds}")
 
@@ -278,7 +318,7 @@ class NegotiationOrchestrator:
                 "session_id": request.session_id,
                 "status": "max_rounds_reached",
                 "scenario": scenario,
-                "rounds_completed": current_round,
+                "round": current_round,
                 "max_rounds": max_rounds,
                 "speaker": "System",
                 "message": (
@@ -290,7 +330,343 @@ class NegotiationOrchestrator:
         return {
             "session_id": request.session_id,
             "speaker": ai_speaker,
-            "message": ai_reply
+            "message": ai_reply,
+            "status": "in_progress",
+            "round": current_round,
+            "max_rounds": max_rounds
+        }
+    def simulate_next_turn(self, session_id):
+
+        session = self.session_manager.get_session(session_id)
+
+        if session is None:
+            return {
+                "error": "Invalid session ID"
+            }
+
+        conversation = self.conversation_manager.get_conversation(
+            session_id
+        )
+
+        # ---------------------------------
+        # Already completed?
+        # ---------------------------------
+
+        if session.get("status") != "in_progress":
+            return {
+                "status": session["status"],
+                "scenario": session["scenario"],
+                "max_rounds": session["max_rounds"],
+                "conversation": conversation
+            }
+
+        scenario = session["scenario"]
+        max_rounds = session["max_rounds"]
+
+        agent1_config = session.get("agent1_config")
+        agent2_config = session.get("agent2_config")
+
+        # ---------------------------------
+        # Make sure opening message exists
+        # ---------------------------------
+
+        if len(conversation) == 0:
+
+            if scenario == "Vendor Pricing Negotiation":
+
+                supplier_price = (
+                    agent2_config.starting_target
+                    if agent2_config
+                    else 105000
+                )
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "Supplier",
+                    f"We are pleased to offer 100 laptops at ₹{supplier_price:,.0f} per unit with standard warranty and delivery."
+                )
+
+            elif scenario == "Job Offer Negotiation":
+
+                hr_salary = (
+                    agent2_config.starting_target
+                    if agent2_config
+                    else 1000000
+                )
+
+                hr_salary_lpa = hr_salary / 100000
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "HR Manager",
+                    f"We are pleased to offer you a position with a salary of ₹{hr_salary_lpa:g} LPA along with standard company benefits."
+                )
+
+            elif scenario == "Project Budget Allocation":
+
+                total_budget = session.get(
+                    "project_total_budget"
+                )
+
+                if total_budget is None:
+                    total_budget = 5000000
+
+                total_budget_lakh = total_budget / 100000
+
+                self.conversation_manager.add_message(
+                    session_id,
+                    "Budget Manager",
+                    f"The total project budget available is ₹{total_budget_lakh:g} lakh. Please present your department's budget requirements so we can reach a fair allocation."
+                )
+
+            conversation = self.conversation_manager.get_conversation(
+                session_id
+            )
+
+        # ---------------------------------
+        # Determine who should speak
+        # ---------------------------------
+
+        negotiation_speakers = [
+            msg["speaker"]
+            for msg in conversation
+            if msg["speaker"] in [
+                "Buyer",
+                "Supplier",
+                "Candidate",
+                "HR Manager",
+                "Department Representative",
+                "Budget Manager"
+            ]
+        ]
+
+        last_speaker = (
+            negotiation_speakers[-1]
+            if negotiation_speakers
+            else None
+        )
+
+        # ---------------------------------
+        # Select next AI agent
+        # ---------------------------------
+
+        if scenario == "Vendor Pricing Negotiation":
+
+            if last_speaker == "Supplier":
+                ai_speaker = "Buyer"
+                agent = self.buyer_agent
+                agent_config = agent1_config
+
+            else:
+                ai_speaker = "Supplier"
+                agent = self.supplier_agent
+                agent_config = agent2_config
+
+        elif scenario == "Job Offer Negotiation":
+
+            if last_speaker == "HR Manager":
+                ai_speaker = "Candidate"
+                agent = self.candidate_agent
+                agent_config = agent1_config
+
+            else:
+                ai_speaker = "HR Manager"
+                agent = self.hr_agent
+                agent_config = agent2_config
+
+        elif scenario == "Project Budget Allocation":
+
+            if last_speaker == "Budget Manager":
+                ai_speaker = "Department Representative"
+                agent = self.department_agent
+                agent_config = agent1_config
+
+            else:
+                ai_speaker = "Budget Manager"
+                agent = self.budget_agent
+                agent_config = agent2_config
+
+        else:
+            return {
+                "error": f"Unsupported scenario: {scenario}"
+            }
+
+        # ---------------------------------
+        # Generate ONE AI response
+        # ---------------------------------
+
+        try:
+
+            ai_response = agent.negotiate(
+                conversation,
+                scenario,
+                agent_config
+            )
+
+            ai_reply = ai_response["message"]
+
+        except Exception as e:
+
+            print("AI Error:", e)
+
+            ai_reply = (
+                "I'm unable to generate a response at the moment. "
+                "Please continue the negotiation."
+            )
+
+        # ---------------------------------
+        # Gemini quota
+        # ---------------------------------
+
+        if (
+            "RESOURCE_EXHAUSTED" in ai_reply
+            or "429" in ai_reply
+        ):
+
+            self.conversation_manager.add_message(
+                session_id,
+                "System",
+                "Simulation stopped because the Gemini API quota was exceeded."
+            )
+
+            self.session_manager.update_status(
+                session_id,
+                "quota_exceeded"
+            )
+
+            return {
+                "session_id": session_id,
+                "status": "quota_exceeded",
+                "speaker": "System",
+                "message": "Gemini API quota exceeded."
+            }
+
+        # ---------------------------------
+        # Add ONE AI message
+        # ---------------------------------
+
+        self.conversation_manager.add_message(
+            session_id,
+            ai_speaker,
+            ai_reply
+        )
+
+        # ---------------------------------
+        # Agreement detection
+        # ---------------------------------
+
+        if self.agreement_detector.is_agreement(
+            ai_reply
+        ):
+
+            self.conversation_manager.add_message(
+                session_id,
+                "System",
+                "Negotiation completed successfully. Agreement reached."
+            )
+
+            self.session_manager.update_status(
+                session_id,
+                "agreement_reached"
+            )
+
+            return {
+                "session_id": session_id,
+                "status": "agreement_reached",
+                "speaker": ai_speaker,
+                "message": ai_reply
+            }
+
+        # ---------------------------------
+        # Refresh conversation
+        # ---------------------------------
+
+        conversation = self.conversation_manager.get_conversation(
+            session_id
+        )
+
+        # ---------------------------------
+        # Deadlock detection
+        # ---------------------------------
+
+        if self.deadlock_detector.is_deadlock(
+            conversation
+        ):
+
+            self.conversation_manager.add_message(
+                session_id,
+                "System",
+                "Negotiation ended due to deadlock."
+            )
+
+            self.session_manager.update_status(
+                session_id,
+                "deadlock"
+            )
+
+            return {
+                "session_id": session_id,
+                "status": "deadlock",
+                "speaker": ai_speaker,
+                "message": ai_reply
+            }
+
+        # ---------------------------------
+        # Count completed AI turns
+        # ---------------------------------
+
+        turn_count = len([
+            msg
+            for msg in conversation
+            if msg["speaker"] in [
+                "Buyer",
+                "Supplier",
+                "Candidate",
+                "HR Manager",
+                "Department Representative",
+                "Budget Manager"
+            ]
+        ])
+
+        completed_rounds = max(
+            0,
+            (turn_count - 1) // 2
+        )
+
+        # ---------------------------------
+        # Maximum rounds
+        # ---------------------------------
+
+        if completed_rounds >= max_rounds:
+
+            self.conversation_manager.add_message(
+                session_id,
+                "System",
+                f"Negotiation ended after reaching the maximum of {max_rounds} rounds."
+            )
+
+            self.session_manager.update_status(
+                session_id,
+                "max_rounds_reached"
+            )
+
+            return {
+                "session_id": session_id,
+                "status": "max_rounds_reached",
+                "speaker": ai_speaker,
+                "message": ai_reply
+            }
+
+        # ---------------------------------
+        # Continue negotiation
+        # ---------------------------------
+
+        return {
+            "session_id": session_id,
+            "status": "in_progress",
+            "speaker": ai_speaker,
+            "message": ai_reply,
+            "round": completed_rounds
         }
     def simulate_negotiation(self, session_id):
 
@@ -372,14 +748,17 @@ class NegotiationOrchestrator:
 
             elif scenario == "Project Budget Allocation":
 
+                total_budget = session.get(
+                    "project_total_budget",
+                    5000000
+                )
+
+                total_budget_lakh = total_budget / 100000
+
                 self.conversation_manager.add_message(
-
                     session_id,
-
                     "Budget Manager",
-
-                    "The total project budget available is ₹50 lakh. Please present your department's budget requirements so we can reach a fair allocation."
-
+                    f"The total project budget available is ₹{total_budget_lakh:g} lakh. Please present your department's budget requirements so we can reach a fair allocation."
                 )
 
             conversation = self.conversation_manager.get_conversation(
@@ -683,7 +1062,8 @@ class NegotiationOrchestrator:
 
                 department_response = self.department_agent.negotiate(
                     conversation,
-                    scenario
+                    scenario,
+                    agent1_config
                 )
 
                 department_reply = department_response["message"]
@@ -739,7 +1119,8 @@ class NegotiationOrchestrator:
 
                 budget_response = self.budget_agent.negotiate(
                     conversation,
-                    scenario
+                    scenario,
+                    agent2_config
                 )
 
                 budget_reply = budget_response["message"]

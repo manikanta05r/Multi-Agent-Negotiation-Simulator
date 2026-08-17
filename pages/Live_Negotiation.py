@@ -26,6 +26,33 @@ session_id = st.session_state.get("session_id", "")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
+if "practice_finished" not in st.session_state:
+    st.session_state.practice_finished = False
+
+if "practice_status" not in st.session_state:
+    st.session_state.practice_status = "Waiting"
+
+if "practice_round" not in st.session_state:
+    st.session_state.practice_round = 0
+
+if "simulation_finished" not in st.session_state:
+    st.session_state.simulation_finished = False
+
+if "simulation_status" not in st.session_state:
+    st.session_state.simulation_status = "Waiting"
+
+if "simulation_round" not in st.session_state:
+    st.session_state.simulation_round = 0
+
+if "simulation_running" not in st.session_state:
+    st.session_state.simulation_running = False
+
+if "simulation_thinking" not in st.session_state:
+    st.session_state.simulation_thinking = False
+
+if "simulation_active_agent" not in st.session_state:
+    st.session_state.simulation_active_agent = None
+
 # ==========================================
 # Header
 # ==========================================
@@ -46,13 +73,304 @@ with chat_col:
 
     st.subheader("🗨️ Negotiation Conversation")
 
-    # =====================================
+        # =====================================
     # AI vs AI
     # =====================================
 
     if mode == "AI vs AI":
 
-        st.info("🤖 AI vs AI mode will be integrated later.")
+        st.info(
+            "🤖 AI vs AI mode — autonomous negotiation"
+        )
+
+        # ---------------------------------
+        # Load existing conversation
+        # ---------------------------------
+
+        if session_id and len(st.session_state.messages) == 0:
+
+            try:
+
+                response = requests.get(
+                    f"http://127.0.0.1:8000/negotiation/{session_id}",
+                    timeout=10
+                )
+
+                if response.status_code == 200:
+
+                    data = response.json()
+
+                    backend_messages = data.get(
+                        "messages",
+                        []
+                    )
+
+                    st.session_state.messages = [
+                        (
+                            msg.get("speaker", "AI"),
+                            msg.get("message", "")
+                        )
+                        for msg in backend_messages
+                        if msg.get("speaker") != "System"
+                    ]
+
+                    st.session_state.simulation_round = data.get(
+                        "round",
+                        0
+                    )
+
+            except Exception as e:
+
+                st.error(
+                    f"Unable to load negotiation.\n\n{e}"
+                )
+
+        # ---------------------------------
+        # Display conversation
+        # ---------------------------------
+
+        ai_roles = [
+            "Buyer",
+            "Supplier",
+            "Candidate",
+            "HR Manager",
+            "Department Representative",
+            "Budget Manager",
+            "AI"
+        ]
+
+        for sender, message in st.session_state.messages:
+
+            if sender in ai_roles:
+
+                with st.chat_message("assistant"):
+
+                    st.write(
+                        f"🤖 **{sender}:** {message}"
+                    )
+
+            else:
+
+                with st.chat_message("assistant"):
+
+                    st.write(
+                        f"🤖 **{sender}:** {message}"
+                    )
+
+        # ---------------------------------
+        # Finished
+        # ---------------------------------
+
+        if st.session_state.simulation_finished:
+
+            if st.session_state.simulation_status == "agreement_reached":
+
+                st.success(
+                    "✅ Agreement Reached"
+                )
+
+            elif st.session_state.simulation_status == "deadlock":
+
+                st.warning(
+                    "⚠️ Negotiation ended due to Deadlock"
+                )
+
+            elif st.session_state.simulation_status == "max_rounds_reached":
+
+                st.warning(
+                    "⚠️ Maximum Rounds Reached"
+                )
+
+            elif st.session_state.simulation_status == "quota_exceeded":
+
+                st.error(
+                    "⛔ Gemini API Quota Exceeded"
+                )
+
+        # ---------------------------------
+        # Start simulation
+        # ---------------------------------
+
+        elif not st.session_state.simulation_running:
+
+            if st.button(
+                "▶️ Start AI Negotiation",
+                use_container_width=True
+            ):
+
+                st.session_state.simulation_running = True
+
+                st.rerun()
+
+        # ---------------------------------
+        # Automatic AI turns
+        # ---------------------------------
+
+        else:
+
+            import time
+
+            # Show thinking state
+
+            thinking_placeholder = st.empty()
+
+            # Determine the next AI agent
+            if scenario == "Vendor Pricing Negotiation":
+
+                if len(st.session_state.messages) == 0:
+                    active_agent = "Supplier"
+                else:
+                    last_speaker = st.session_state.messages[-1][0]
+                    active_agent = (
+                        "Buyer"
+                        if last_speaker == "Supplier"
+                        else "Supplier"
+                    )
+
+            elif scenario == "Job Offer Negotiation":
+
+                if len(st.session_state.messages) == 0:
+                    active_agent = "HR Manager"
+                else:
+                    last_speaker = st.session_state.messages[-1][0]
+                    active_agent = (
+                        "Candidate"
+                        if last_speaker == "HR Manager"
+                        else "HR Manager"
+                    )
+
+            elif scenario == "Project Budget Allocation":
+
+                if len(st.session_state.messages) == 0:
+                    active_agent = "Budget Manager"
+                else:
+                    last_speaker = st.session_state.messages[-1][0]
+                    active_agent = (
+                        "Department Representative"
+                        if last_speaker == "Budget Manager"
+                        else "Budget Manager"
+                    )
+
+            else:
+                active_agent = "AI"
+
+            st.session_state.simulation_active_agent = active_agent
+
+            thinking_placeholder.info(
+                f"🤔 **{active_agent} is thinking...**"
+            )
+
+            # Wait approximately 2 seconds
+
+            time.sleep(2)
+
+            try:
+
+                response = requests.post(
+
+                    "http://127.0.0.1:8000/simulate-next-turn",
+
+                    json={
+                        "session_id": session_id
+                    },
+
+                    timeout=120
+
+                )
+
+                if response.status_code == 200:
+
+                    data = response.json()
+
+                    # -----------------------------
+                    # AI response
+                    # -----------------------------
+
+                    ai_speaker = data.get(
+                        "speaker",
+                        "AI"
+                    )
+
+                    ai_message = data.get(
+                        "message",
+                        ""
+                    )
+
+                    # -----------------------------
+                    # Add response
+                    # -----------------------------
+
+                    if ai_message:
+
+                        st.session_state.messages.append(
+                            (
+                                ai_speaker,
+                                ai_message
+                            )
+                        )
+
+                    # -----------------------------
+                    # Update round
+                    # -----------------------------
+
+                    st.session_state.simulation_round = data.get(
+                        "round",
+                        st.session_state.simulation_round
+                    )
+
+                    # -----------------------------
+                    # Update status
+                    # -----------------------------
+
+                    status = data.get(
+                        "status",
+                        "in_progress"
+                    )
+
+                    st.session_state.simulation_status = status
+
+                    # -----------------------------
+                    # Check completion
+                    # -----------------------------
+
+                    if status in [
+                        "agreement_reached",
+                        "deadlock",
+                        "max_rounds_reached",
+                        "quota_exceeded"
+                    ]:
+
+                        st.session_state.simulation_finished = True
+
+                        st.session_state.simulation_running = False
+
+                else:
+
+                    st.error(
+                        f"Backend Error: {response.text}"
+                    )
+
+                    st.session_state.simulation_running = False
+
+            except Exception as e:
+
+                st.error(
+                    f"Backend Connection Error\n\n{e}"
+                )
+
+                st.session_state.simulation_running = False
+
+            finally:
+
+                thinking_placeholder.empty()
+
+            # ---------------------------------
+            # Rerun for next AI turn
+            # ---------------------------------
+
+            if not st.session_state.simulation_finished:
+
+                st.rerun()
 
     # =====================================
     # Human vs AI
@@ -62,10 +380,51 @@ with chat_col:
 
         st.info(f"🎮 Practice Mode | Your Role: **{role}**")
 
+        # =====================================
+        # Load existing backend conversation
+        # =====================================
+
+        if session_id and len(st.session_state.messages) == 0:
+
+            try:
+
+                response = requests.get(
+                    f"http://127.0.0.1:8000/negotiation/{session_id}",
+                    timeout=10
+                )
+
+                if response.status_code == 200:
+
+                    data = response.json()
+
+                    backend_messages = data.get(
+                        "messages",
+                        []
+                    )
+
+                    st.session_state.messages = [
+                        (
+                            msg.get("speaker", "AI"),
+                            msg.get("message", "")
+                        )
+                        for msg in backend_messages
+                    ]
+
+                    st.session_state.practice_round = data.get(
+                        "round",
+                        0
+                    )
+
+            except Exception as e:
+
+                st.error(
+                    f"Unable to load negotiation.\n\n{e}"
+                )
+
         # Show conversation
         for sender, message in st.session_state.messages:
 
-            ai_roles = ["Supplier","Buyer", "HR Manager", "Candidate","Budget Manager", "AI"]
+            ai_roles = ["Supplier","Buyer", "HR Manager", "Candidate","Department Representative","Budget Manager", "AI"]
 
             if sender in ai_roles:
 
@@ -78,73 +437,129 @@ with chat_col:
                     st.write(f"🧑 **{sender}:** {message}")
 
         # Chat input
-        user_offer = st.chat_input("Enter your offer...")
+        # =====================================
+        # Chat Input / Negotiation Control
+        # =====================================
 
-        if user_offer:
+        if st.session_state.practice_finished:
 
-            # Show user message
-            st.session_state.messages.append(
-                (role, user_offer)
+            st.success(
+                "✅ Negotiation Completed — Further offers are disabled."
             )
 
-            try:
+        else:
 
-                response = requests.post(
+            user_offer = st.chat_input(
+                "Enter your offer..."
+            )
 
-                    "http://127.0.0.1:8000/next-round",
+            if user_offer:
 
-                    json={
-
-                        "session_id": session_id,
-
-                        "speaker": role,
-
-                        "message": user_offer
-
-                    }
-
+                # Show user message
+                st.session_state.messages.append(
+                    (role, user_offer)
                 )
 
-                if response.status_code == 200:
+                try:
 
-                    data = response.json()
+                    response = requests.post(
 
-                    # Add AI reply
-                    st.session_state.messages.append(
+                        "http://127.0.0.1:8000/next-round",
 
-                        (
+                        json={
 
-                            data.get("speaker", "Supplier"),
+                            "session_id": session_id,
 
-                            data.get("message", "")
+                            "speaker": role,
 
-                        )
+                            "message": user_offer
+
+                        },
+
+                        timeout=120
 
                     )
 
-                    # Check negotiation status
-                    if "status" in data:
+                    if response.status_code == 200:
 
-                        status = data["status"]
+                        data = response.json()
+
+                        # Add AI reply
+                        ai_speaker = data.get(
+                            "speaker",
+                            "AI"
+                        )
+
+                        ai_message = data.get(
+                            "message",
+                            ""
+                        )
+
+                        st.session_state.messages.append(
+                            (
+                                ai_speaker,
+                                ai_message
+                            )
+                        )
+                        # ---------------------------------
+                        # Update round
+                        # ---------------------------------
+
+                        st.session_state.practice_round = (
+                            data.get(
+                                "round",
+                                st.session_state.practice_round
+                            )
+                        )
+
+                        # ---------------------------------
+                        # Check negotiation status
+                        # ---------------------------------
+
+                        status = data.get(
+                            "status",
+                            "in_progress"
+                        )
+
+                        st.session_state.practice_status = status
 
                         if status == "agreement_reached":
-                            st.success("✅ Agreement Reached")
+
+                            st.session_state.practice_finished = True
+
+                            st.success(
+                                "✅ Agreement Reached"
+                            )
 
                         elif status == "deadlock":
-                            st.warning("⚠ Negotiation ended due to Deadlock")
+
+                            st.session_state.practice_finished = True
+
+                            st.warning(
+                                "⚠️ Negotiation ended due to Deadlock"
+                            )
 
                         elif status == "max_rounds_reached":
-                            st.warning("⚠ Maximum Rounds Reached")
 
-                else:
+                            st.session_state.practice_finished = True
 
-                    st.error(response.text)
+                            st.warning(
+                                "⚠️ Maximum Rounds Reached"
+                            )
 
-            except Exception as e:
+                    else:
 
-                st.error(f"Backend Connection Error\n\n{e}")
+                        st.error(
+                            response.text
+                        )
 
-            st.rerun()
+                except Exception as e:
+
+                    st.error(
+                        f"Backend Connection Error\n\n{e}"
+                    )
+
+                st.rerun()
 
 # ==========================================
 # Status Panel
@@ -161,25 +576,90 @@ with status_col:
 
     st.metric("Scenario", scenario)
 
-    rounds = sum(
-        1
-        for sender, _ in st.session_state.messages
-        if sender == role
+    if mode == "AI vs AI":
+
+        active_agent = st.session_state.simulation_active_agent
+
+        if active_agent:
+
+            st.info(
+                f"🤔 **{active_agent}** is thinking..."
+            )
+
+        elif not st.session_state.simulation_finished:
+
+            st.success(
+                "🟢 Waiting for next AI turn"
+            )
+
+    if mode == "AI vs AI":
+        rounds = st.session_state.simulation_round
+    else:
+        rounds = st.session_state.practice_round
+
+    st.metric(
+        "Rounds",
+        f"{rounds}/{max_rounds}"
     )
 
-    st.metric("Rounds", f"{rounds}/{max_rounds}")
-
-    progress = min(rounds / max_rounds, 1.0)
+    progress = min(
+        rounds / max_rounds,
+        1.0
+    )
 
     st.progress(progress)
 
-    if len(st.session_state.messages) == 0:
+    if mode == "AI vs AI":
 
-        st.info("Waiting to start")
+        if st.session_state.simulation_finished:
+
+            if st.session_state.simulation_status == "agreement_reached":
+
+                st.success("✅ Agreement Reached")
+
+            elif st.session_state.simulation_status == "deadlock":
+
+                st.warning("⚠️ Deadlock")
+
+            elif st.session_state.simulation_status == "max_rounds_reached":
+
+                st.warning("⚠️ Maximum Rounds Reached")
+
+            elif st.session_state.simulation_status == "quota_exceeded":
+
+                st.error("⛔ Gemini API Quota Exceeded")
+
+        elif len(st.session_state.messages) == 0:
+
+            st.info("Waiting to start")
+
+        else:
+
+            st.success("🟢 Negotiation Active")
 
     else:
 
-        st.success("Negotiation Active")
+        if st.session_state.practice_finished:
+
+            if st.session_state.practice_status == "agreement_reached":
+
+                st.success("✅ Agreement Reached")
+
+            elif st.session_state.practice_status == "deadlock":
+
+                st.warning("⚠️ Deadlock")
+
+            elif st.session_state.practice_status == "max_rounds_reached":
+
+                st.warning("⚠️ Maximum Rounds Reached")
+
+        elif len(st.session_state.messages) == 0:
+
+            st.info("Waiting to start")
+
+        else:
+
+            st.success("🟢 Negotiation Active")
 
 st.divider()
 
@@ -211,9 +691,25 @@ col1, col2, col3 = st.columns(3)
 
 with col1:
 
-    if st.button("🔄 Restart Negotiation", use_container_width=True):
+    if st.button(
+        "🔄 Restart Negotiation",
+        use_container_width=True
+    ):
 
         st.session_state.messages = []
+
+        # Practice Mode reset
+        st.session_state.practice_finished = False
+        st.session_state.practice_status = "Waiting"
+        st.session_state.practice_round = 0
+
+        # AI vs AI reset
+        st.session_state.simulation_finished = False
+        st.session_state.simulation_status = "Waiting"
+        st.session_state.simulation_round = 0
+        st.session_state.simulation_running = False
+        st.session_state.simulation_thinking = False
+        st.session_state.simulation_active_agent = None
 
         st.rerun()
 

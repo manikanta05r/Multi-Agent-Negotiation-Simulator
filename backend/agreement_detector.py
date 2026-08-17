@@ -9,6 +9,7 @@ class AgreementDetector:
         patterns = [
 
             # Explicit acceptance
+            r"\bi can accept\b",
             r"\bi accept\b",
             r"\bwe accept\b",
             r"\baccept this offer\b",

@@ -16,6 +16,8 @@ class NegotiationRequest(BaseModel):
     mode: str
     max_rounds: int
 
+    project_total_budget: float | None = None
+
     agent1_config: AgentConfig | None = None
     agent2_config: AgentConfig | None = None
 

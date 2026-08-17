@@ -12,7 +12,8 @@ class SessionManager:
         mode,
         max_rounds,
         agent1_config=None,
-        agent2_config=None
+        agent2_config=None,
+        project_total_budget=None
     ):
         session_id = str(uuid.uuid4())
 
@@ -22,6 +23,7 @@ class SessionManager:
             "max_rounds": max_rounds,
             "agent1_config": agent1_config,
             "agent2_config": agent2_config,
+            "project_total_budget": project_total_budget,
             "status": "in_progress"
         }
 

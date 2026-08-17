@@ -34,6 +34,81 @@ def next_round(request: NextRoundRequest):
 def simulate_negotiation(request: SimulationRequest):
     return orchestrator.simulate_negotiation(request.session_id)
 
+@app.post("/simulate-next-turn")
+def simulate_next_turn(request: SimulationRequest):
+    return orchestrator.simulate_next_turn(request.session_id)
+
+@app.get("/negotiation/{session_id}")
+def get_negotiation(session_id: str):
+
+    session = orchestrator.session_manager.get_session(session_id)
+
+    if session is None:
+        return {"error": "Invalid session ID"}
+
+    conversation = (
+        orchestrator.conversation_manager.get_conversation(
+            session_id
+        )
+    )
+
+    status = session.get("status", "in_progress")
+
+    # Count negotiation rounds
+    speakers = [
+        "Buyer",
+        "Supplier",
+        "Candidate",
+        "HR Manager",
+        "Department Representative",
+        "Budget Manager"
+    ]
+
+    rounds = sum(
+        1
+        for message in conversation
+        if message["speaker"] in speakers
+    ) // 2
+
+    # Find the next active agent
+    active_agent = None
+
+    if status == "in_progress":
+
+        scenario = session["scenario"]
+
+        if scenario == "Vendor Pricing Negotiation":
+            active_agent = (
+                "Buyer"
+                if rounds % 2 == 0
+                else "Supplier"
+            )
+
+        elif scenario == "Job Offer Negotiation":
+            active_agent = (
+                "Candidate"
+                if rounds % 2 == 0
+                else "HR Manager"
+            )
+
+        elif scenario == "Project Budget Allocation":
+            active_agent = (
+                "Department Representative"
+                if rounds % 2 == 0
+                else "Budget Manager"
+            )
+
+    return {
+        "session_id": session_id,
+        "scenario": session["scenario"],
+        "mode": session["mode"],
+        "status": status,
+        "round": rounds,
+        "max_rounds": session["max_rounds"],
+        "active_agent": active_agent,
+        "messages": conversation
+    }
+
 @app.get("/conversation/{session_id}")
 def get_conversation(session_id: str):
     return orchestrator.conversation_manager.get_conversation(session_id)
