@@ -202,3 +202,58 @@ def delete_negotiation(
     )
 
     return bool(response.data)
+
+def save_negotiation_message(
+    session_id: str,
+    speaker: str,
+    message: str
+) -> dict[str, Any] | None:
+    """Save a negotiation message to Supabase."""
+
+    response = (
+        supabase
+        .table("negotiation_messages")
+        .insert({
+            "session_id": session_id,
+            "speaker": speaker,
+            "message": message
+        })
+        .execute()
+    )
+
+    data = response.data or []
+
+    if (
+        isinstance(data, list)
+        and len(data) > 0
+        and isinstance(data[0], dict)
+    ):
+        return data[0]
+
+    return None
+
+
+def fetch_negotiation_messages(
+    session_id: str
+) -> list[dict[str, Any]]:
+    """Fetch all messages for a negotiation."""
+
+    response = (
+        supabase
+        .table("negotiation_messages")
+        .select("*")
+        .eq("session_id", session_id)
+        .order("created_at")
+        .execute()
+    )
+
+    data = response.data or []
+
+    if isinstance(data, list):
+        return [
+            item
+            for item in data
+            if isinstance(item, dict)
+        ]
+
+    return []
