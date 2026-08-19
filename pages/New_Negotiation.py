@@ -277,36 +277,13 @@ elif st.session_state.mode == "Practice":
         "✅ Practice Mode Selected — Human vs AI"
     )
 
-<<<<<<< HEAD
 
 # ============================================================
 # SCENARIO-SPECIFIC CONFIGURATION
 # ============================================================
 
 if scenario == "Vendor Pricing Negotiation":
-=======
-    # Available roles for each scenario
-    if scenario == "Vendor Pricing Negotiation":
 
-        roles = [
-            "Buyer",
-            "Supplier"
-        ]
-
-    elif scenario == "Job Offer Negotiation":
-
-        roles = [
-            "Candidate",
-            "HR Manager"
-        ]
-
-    else:
-
-        roles = [
-            "Budget Requester",
-            "Budget Allocator"
-        ]
->>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
 
     field1_label = "Starting Target"
     field2_label = "Reservation Price / Walk Away"
@@ -669,7 +646,7 @@ if st.session_state.mode == "Simulation":
                 key="agent1_strategy"
             )
 
-<<<<<<< HEAD
+
 
             st.markdown(f"**{field1_label}**")
 
@@ -724,28 +701,6 @@ if st.session_state.mode == "Simulation":
                 )
 
             st.caption(field2_help)
-=======
-            agent1_starting_target = st.number_input(
-                "Starting Target",
-                min_value=0.0,
-                step=1000.0,
-                value=float(
-                    SCENARIO_DEFAULTS[scenario]["agent1_starting"]
-                ),
-                key="agent1_starting_target"
-            )
-
-
-            agent1_reservation_price = st.number_input(
-                "Reservation Price – Walk Away",
-                min_value=0.0,
-                step=1000.0,
-                value=float(
-                    SCENARIO_DEFAULTS[scenario]["agent1_reservation"]
-                ),
-                key="agent1_reservation_price"
-            )
->>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
 
             agent1_instructions = st.text_area(
                 "Custom Instructions",
@@ -797,7 +752,7 @@ if st.session_state.mode == "Simulation":
                 index=1,
                 key="agent2_strategy"
             )
-<<<<<<< HEAD
+
 
 
             st.markdown(f"**{field1_label}**")
@@ -853,7 +808,7 @@ if st.session_state.mode == "Simulation":
                 )
 
             st.caption(field2_help)
-=======
+
             agent2_starting_target = st.number_input(
                 "Starting Target",
                 min_value=0.0,
@@ -873,7 +828,7 @@ if st.session_state.mode == "Simulation":
                 ),
                 key="agent2_reservation_price"
             )
->>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
+
 
             agent2_instructions = st.text_area(
                 "Custom Instructions",
@@ -1270,17 +1225,10 @@ if st.button(
             "role": agent1_role,
             "strategy": agent1_strategy,
             "scenario": scenario,
-<<<<<<< HEAD
             "starting_target": agent1_field1,
             "reservation_price": agent1_field2,
             "instructions": agent1_instructions
-=======
-            "mode": backend_mode,
-            "max_rounds": max_rounds,
-            "project_total_budget": project_budget,
-            "agent1_config": st.session_state.agent1_config,
-            "agent2_config": st.session_state.agent2_config
->>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
+
         }
 
 

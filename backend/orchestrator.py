@@ -1345,27 +1345,51 @@ class NegotiationOrchestrator:
 
     def _store_negotiation_score(self, session_id):
 
-        report = self.generate_report(session_id)
+        try:
+            report = self.generate_report(session_id)
 
-        if isinstance(report, dict):
+            score = report.get(
+                "negotiation_score"
+            )
 
-            if "negotiation_score" in report:
+            score_breakdown = report.get(
+                "score_breakdown"
+            )
 
-                self.session_manager.sessions[
-                    session_id
-                ]["negotiation_score"] = report[
-                    "negotiation_score"
-                ]
+            summary = report.get(
+                "summary"
+            )
 
-            if "score_breakdown" in report:
+            # Store score in the active in-memory session.
+            session = self.session_manager.get_session(
+                session_id
+            )
 
-                self.session_manager.sessions[
-                    session_id
-                ]["score_breakdown"] = report[
-                    "score_breakdown"
-                ]
+            if session is not None:
 
-        return report
+                session["negotiation_score"] = score
+
+                session["score_breakdown"] = (
+                    score_breakdown
+                )
+
+                session["summary"] = summary
+
+            # Persist the completed negotiation
+            # in Supabase.
+            self.session_manager.save_completed_session(
+                session_id=session_id,
+                negotiation_score=score,
+                score_breakdown=score_breakdown,
+                summary=summary
+            )
+
+        except Exception as e:
+
+            print(
+                "Error storing negotiation score:",
+                e
+            )
 
     def generate_report(self, session_id):
 
