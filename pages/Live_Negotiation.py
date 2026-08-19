@@ -53,6 +53,14 @@ if "simulation_thinking" not in st.session_state:
 if "simulation_active_agent" not in st.session_state:
     st.session_state.simulation_active_agent = None
 
+if "practice_thinking" not in st.session_state:
+    st.session_state.practice_thinking = False
+
+if "practice_pending_offer" not in st.session_state:
+    st.session_state.practice_pending_offer = None
+
+if "practice_processing" not in st.session_state:
+    st.session_state.practice_processing = False
 # ==========================================
 # Header
 # ==========================================
@@ -134,8 +142,8 @@ with chat_col:
             "Supplier",
             "Candidate",
             "HR Manager",
-            "Department Representative",
-            "Budget Manager",
+            "Budget Requester",
+            "Budget Allocator",
             "AI"
         ]
 
@@ -242,13 +250,13 @@ with chat_col:
             elif scenario == "Project Budget Allocation":
 
                 if len(st.session_state.messages) == 0:
-                    active_agent = "Budget Manager"
+                    active_agent = "Budget Allocator"
                 else:
                     last_speaker = st.session_state.messages[-1][0]
                     active_agent = (
-                        "Department Representative"
-                        if last_speaker == "Budget Manager"
-                        else "Budget Manager"
+                        "Budget Requester"
+                        if last_speaker == "Budget Allocator"
+                        else "Budget Allocator"
                     )
 
             else:
@@ -422,19 +430,88 @@ with chat_col:
                 )
 
         # Show conversation
-        for sender, message in st.session_state.messages:
+        # ==========================================
+        # Zig-Zag Negotiation Conversation
+        # ==========================================
 
-            ai_roles = ["Supplier","Buyer", "HR Manager", "Candidate","Department Representative","Budget Manager", "AI"]
+        for index, (sender, message) in enumerate(
+            st.session_state.messages
+        ):
 
-            if sender in ai_roles:
+            # ------------------------------------------
+            # System message
+            # ------------------------------------------
 
-                with st.chat_message("assistant"):
-                    st.write(f"🤖 **{sender}:** {message}")
+            if sender == "System":
+
+                st.success(
+                    f"🤝 **System**\n\n{message}"
+                )
+
+                continue
+
+            # ------------------------------------------
+            # Determine whether this is the user's role
+            # ------------------------------------------
+
+            is_user = sender == role
+
+            # ------------------------------------------
+            # Create two sides
+            # ------------------------------------------
+
+            left_col, right_col = st.columns(
+                [1, 1],
+                gap="large"
+            )
+
+            # ==========================================
+            # USER → LEFT
+            # ==========================================
+
+            if is_user:
+
+                with left_col:
+
+                    with st.container(border=True):
+
+                        st.markdown(
+                            f"### 🧑 {sender}"
+                        )
+
+                        st.caption(
+                            f"Round {index // 2 + 1}"
+                        )
+
+                        st.write(message)
+
+                with right_col:
+
+                    st.empty()
+
+            # ==========================================
+            # AI → RIGHT
+            # ==========================================
 
             else:
 
-                with st.chat_message("user"):
-                    st.write(f"🧑 **{sender}:** {message}")
+                with left_col:
+
+                    st.empty()
+
+                with right_col:
+
+                    with st.container(border=True):
+
+                        st.markdown(
+                            f"### 🤖 {sender}"
+                        )
+
+                        st.caption(
+                            f"Round {index // 2 + 1}"
+                        )
+
+                        st.write(message)
 
         # Chat input
         # =====================================
@@ -443,14 +520,33 @@ with chat_col:
 
         if st.session_state.practice_finished:
 
-            st.success(
-                "✅ Negotiation Completed — Further offers are disabled."
-            )
+            if st.session_state.practice_status == "agreement_reached":
+                st.success(
+                    "✅ Agreement Reached — Further offers are disabled."
+                )
+
+            elif st.session_state.practice_status == "deadlock":
+                st.warning(
+                    "⚠️ Negotiation ended due to Deadlock — Further offers are disabled."
+                )
+
+            elif st.session_state.practice_status == "max_rounds_reached":
+                st.warning(
+                    "⚠️ Maximum Rounds Reached — Further offers are disabled."
+                )
+
+            else:
+                st.info(
+                    "✅ Negotiation Completed — Further offers are disabled."
+                )
 
         else:
 
+            thinking_placeholder = st.empty()
+
             user_offer = st.chat_input(
-                "Enter your offer..."
+                "Enter your offer...",
+                disabled=st.session_state.practice_finished
             )
 
             if user_offer:
@@ -460,7 +556,15 @@ with chat_col:
                     (role, user_offer)
                 )
 
+                st.session_state.practice_thinking = True
+
+                thinking_placeholder.info(
+                    "🤖 AI is thinking..."
+                )
+
+
                 try:
+                    
 
                     response = requests.post(
 
@@ -494,6 +598,9 @@ with chat_col:
                             "message",
                             ""
                         )
+
+                        st.session_state.practice_thinking = False
+                        thinking_placeholder.empty()
 
                         st.session_state.messages.append(
                             (
@@ -554,6 +661,8 @@ with chat_col:
                         )
 
                 except Exception as e:
+
+                    st.session_state.practice_thinking = False
 
                     st.error(
                         f"Backend Connection Error\n\n{e}"
@@ -702,6 +811,7 @@ with col1:
         st.session_state.practice_finished = False
         st.session_state.practice_status = "Waiting"
         st.session_state.practice_round = 0
+        st.session_state.practice_thinking = False
 
         # AI vs AI reset
         st.session_state.simulation_finished = False

@@ -48,7 +48,27 @@ class NegotiationOrchestrator:
 
     def next_round(self, request):
 
-        # Save user message
+        session = self.session_manager.get_session(
+            request.session_id
+        )
+
+        if session is None:
+            return {"error": "Invalid session ID"}
+
+        # Stop immediately if negotiation is already completed
+        if session.get("status") != "in_progress":
+            return {
+                "session_id": request.session_id,
+                "status": session.get("status"),
+                "message": "Negotiation has already ended. Further offers are disabled.",
+                "round": session.get("rounds", 0),
+                "max_rounds": session.get("max_rounds"),
+                "conversation": self.conversation_manager.get_conversation(
+                    request.session_id
+                )
+            }
+
+        # Save user message only while negotiation is active
         self.conversation_manager.add_message(
             request.session_id,
             request.speaker,
@@ -58,11 +78,6 @@ class NegotiationOrchestrator:
         conversation = self.conversation_manager.get_conversation(
             request.session_id
         )
-
-        session = self.session_manager.get_session(request.session_id)
-
-        if session is None:
-            return {"error": "Invalid session ID"}
 
         scenario = session["scenario"]
         max_rounds = session["max_rounds"]
@@ -87,9 +102,9 @@ class NegotiationOrchestrator:
             elif scenario == "Project Budget Allocation":
 
                 ai_speaker = (
-                    "Budget Manager"
-                    if request.speaker == "Department Representative"
-                    else "Department Representative"
+                    "Budget Allocator"
+                    if request.speaker == "Budget Requester"
+                    else "Budget Requester"
                 )
 
             else:
@@ -119,11 +134,6 @@ class NegotiationOrchestrator:
                 final_reply
             )
 
-            self.session_manager.update_status(
-                request.session_id,
-                "agreement_reached"
-            )
-
             current_round = sum(
                 1
                 for message in conversation
@@ -132,10 +142,21 @@ class NegotiationOrchestrator:
                     "Supplier",
                     "Candidate",
                     "HR Manager",
-                    "Department Representative",
-                    "Budget Manager"
+                    "Budget Requester",
+                    "Budget Allocator"
                 ]
             ) // 2
+
+            self.session_manager.update_status(
+                request.session_id,
+                "agreement_reached",
+                rounds=current_round
+            )
+
+            self._store_negotiation_score(
+                request.session_id
+            )
+
 
             return {
                 "session_id": request.session_id,
@@ -151,11 +172,6 @@ class NegotiationOrchestrator:
         # Deadlock
         if self.deadlock_detector.is_deadlock(conversation):
 
-            self.session_manager.update_status(
-                request.session_id,
-                "deadlock"
-            )
-
             current_round = sum(
                 1
                 for message in conversation
@@ -164,10 +180,21 @@ class NegotiationOrchestrator:
                     "Supplier",
                     "Candidate",
                     "HR Manager",
-                    "Department Representative",
-                    "Budget Manager"
+                    "Budget Requester",
+                    "Budget Allocator"
                 ]
             ) // 2
+
+
+            self.session_manager.update_status(
+                request.session_id,
+                "deadlock",
+                rounds=current_round
+            )
+
+            self._store_negotiation_score(
+                request.session_id
+            )
 
             return {
                 "session_id": request.session_id,
@@ -221,23 +248,25 @@ class NegotiationOrchestrator:
 
             elif scenario == "Project Budget Allocation":
 
-                if request.speaker == "Department Representative":
+                if request.speaker == "Budget Requester":
 
                     ai_response = self.budget_agent.negotiate(
                         conversation,
-                        scenario
+                        scenario,
+                        session.get("agent2_config")
                     )
 
-                    ai_speaker = "Budget Manager"
+                    ai_speaker = "Budget Allocator"
 
                 else:
 
                     ai_response = self.department_agent.negotiate(
                         conversation,
-                        scenario
+                        scenario,
+                        session.get("agent1_config")
                     )
 
-                    ai_speaker = "Department Representative"
+                    ai_speaker = "Budget Requester"
 
             else:
 
@@ -288,8 +317,8 @@ class NegotiationOrchestrator:
             "Supplier",
             "Candidate",
             "HR Manager",
-            "Department Representative",
-            "Budget Manager"
+            "Budget Requester",
+            "Budget Allocator"
         ]
 
         current_round = sum(
@@ -303,9 +332,15 @@ class NegotiationOrchestrator:
         # Maximum rounds reached
         if current_round >= max_rounds:
 
+
             self.session_manager.update_status(
                 request.session_id,
-                "max_rounds_reached"
+                "max_rounds_reached",
+                rounds=current_round
+            )
+
+            self._store_negotiation_score(
+                request.session_id
             )
 
             self.conversation_manager.add_message(
@@ -415,7 +450,7 @@ class NegotiationOrchestrator:
 
                 self.conversation_manager.add_message(
                     session_id,
-                    "Budget Manager",
+                    "Budget Allocator",
                     f"The total project budget available is ₹{total_budget_lakh:g} lakh. Please present your department's budget requirements so we can reach a fair allocation."
                 )
 
@@ -435,8 +470,8 @@ class NegotiationOrchestrator:
                 "Supplier",
                 "Candidate",
                 "HR Manager",
-                "Department Representative",
-                "Budget Manager"
+                "Budget Requester",
+                "Budget Allocator"
             ]
         ]
 
@@ -476,13 +511,13 @@ class NegotiationOrchestrator:
 
         elif scenario == "Project Budget Allocation":
 
-            if last_speaker == "Budget Manager":
-                ai_speaker = "Department Representative"
+            if last_speaker == "Budget Allocator":
+                ai_speaker = "Budget Requester"
                 agent = self.department_agent
                 agent_config = agent1_config
 
             else:
-                ai_speaker = "Budget Manager"
+                ai_speaker = "Budget Allocator"
                 agent = self.budget_agent
                 agent_config = agent2_config
 
@@ -551,6 +586,28 @@ class NegotiationOrchestrator:
             ai_reply
         )
 
+        conversation = self.conversation_manager.get_conversation(
+            session_id
+        )
+
+        turn_count = len([
+            msg
+            for msg in conversation
+            if msg["speaker"] in [
+                "Buyer",
+                "Supplier",
+                "Candidate",
+                "HR Manager",
+                "Budget Requester",
+                "Budget Allocator"
+            ]
+        ])
+
+        completed_rounds = max(
+            0,
+            (turn_count + 1) // 2
+        )
+
         # ---------------------------------
         # Agreement detection
         # ---------------------------------
@@ -567,14 +624,21 @@ class NegotiationOrchestrator:
 
             self.session_manager.update_status(
                 session_id,
-                "agreement_reached"
+                "agreement_reached",
+                rounds=completed_rounds
+            )
+
+            self._store_negotiation_score(
+                session_id
             )
 
             return {
                 "session_id": session_id,
                 "status": "agreement_reached",
                 "speaker": ai_speaker,
-                "message": ai_reply
+                "message": ai_reply,
+                "round": completed_rounds,
+                "max_rounds": max_rounds
             }
 
         # ---------------------------------
@@ -601,37 +665,21 @@ class NegotiationOrchestrator:
 
             self.session_manager.update_status(
                 session_id,
-                "deadlock"
+                "deadlock",
+                rounds=completed_rounds
+            )
+            self._store_negotiation_score(
+                session_id
             )
 
             return {
                 "session_id": session_id,
                 "status": "deadlock",
                 "speaker": ai_speaker,
-                "message": ai_reply
+                "message": ai_reply,
+                "round": completed_rounds,
+                "max_rounds": max_rounds
             }
-
-        # ---------------------------------
-        # Count completed AI turns
-        # ---------------------------------
-
-        turn_count = len([
-            msg
-            for msg in conversation
-            if msg["speaker"] in [
-                "Buyer",
-                "Supplier",
-                "Candidate",
-                "HR Manager",
-                "Department Representative",
-                "Budget Manager"
-            ]
-        ])
-
-        completed_rounds = max(
-            0,
-            (turn_count - 1) // 2
-        )
 
         # ---------------------------------
         # Maximum rounds
@@ -647,7 +695,12 @@ class NegotiationOrchestrator:
 
             self.session_manager.update_status(
                 session_id,
-                "max_rounds_reached"
+                "max_rounds_reached",
+                rounds=max_rounds
+            )
+
+            self._store_negotiation_score(
+                session_id
             )
 
             return {
@@ -757,7 +810,7 @@ class NegotiationOrchestrator:
 
                 self.conversation_manager.add_message(
                     session_id,
-                    "Budget Manager",
+                    "Budget Allocator",
                     f"The total project budget available is ₹{total_budget_lakh:g} lakh. Please present your department's budget requirements so we can reach a fair allocation."
                 )
 
@@ -776,6 +829,8 @@ class NegotiationOrchestrator:
             # -----------------------------
 
         for round_number in range(max_rounds):
+
+            current_round = round_number + 1
 
             conversation = self.conversation_manager.get_conversation(
                 session_id
@@ -833,7 +888,11 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "agreement_reached"
+                        "agreement_reached",
+                        rounds=current_round
+                    )
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -898,7 +957,12 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "agreement_reached"
+                        "agreement_reached",
+                        rounds=current_round
+                    )
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -930,7 +994,12 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "deadlock"
+                        "deadlock",
+                        rounds=current_round
+                    )
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -980,7 +1049,12 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "agreement_reached"
+                        "agreement_reached",
+                        rounds=current_round
+                    )
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -1032,7 +1106,13 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "agreement_reached"
+                        "agreement_reached",
+                        rounds=current_round
+                    )
+
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -1051,7 +1131,12 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "deadlock"
+                        "deadlock",
+                        rounds=current_round
+                    )
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break            
@@ -1094,7 +1179,7 @@ class NegotiationOrchestrator:
 
                 self.conversation_manager.add_message(
                     session_id,
-                    "Department Representative",
+                    "Budget Requester",
                     department_reply
                 )
 
@@ -1108,7 +1193,12 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "agreement_reached"
+                        "agreement_reached",
+                        rounds=current_round
+                    )
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -1151,7 +1241,7 @@ class NegotiationOrchestrator:
 
                 self.conversation_manager.add_message(
                     session_id,
-                    "Budget Manager",
+                    "Budget Allocator",
                     budget_reply
                 )
 
@@ -1165,7 +1255,12 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "agreement_reached"
+                        "agreement_reached",
+                        rounds=current_round
+                    )
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -1184,7 +1279,12 @@ class NegotiationOrchestrator:
 
                     self.session_manager.update_status(
                         session_id,
-                        "deadlock"
+                        "deadlock",
+                        rounds=current_round
+                    )
+
+                    self._store_negotiation_score(
+                        session_id
                     )
 
                     break
@@ -1212,7 +1312,12 @@ class NegotiationOrchestrator:
 
             self.session_manager.update_status(
                 session_id,
-                "max_rounds_reached"
+                "max_rounds_reached",
+                rounds=current_round
+            )
+
+            self._store_negotiation_score(
+                session_id
             )
 
             session = self.session_manager.get_session(
@@ -1236,3 +1341,78 @@ class NegotiationOrchestrator:
             "conversation": conversation
 
                 }
+
+
+    def _store_negotiation_score(self, session_id):
+
+        report = self.generate_report(session_id)
+
+        if isinstance(report, dict):
+
+            if "negotiation_score" in report:
+
+                self.session_manager.sessions[
+                    session_id
+                ]["negotiation_score"] = report[
+                    "negotiation_score"
+                ]
+
+            if "score_breakdown" in report:
+
+                self.session_manager.sessions[
+                    session_id
+                ]["score_breakdown"] = report[
+                    "score_breakdown"
+                ]
+
+        return report
+
+    def generate_report(self, session_id):
+
+        session = self.session_manager.get_session(
+            session_id
+        )
+
+        if session is None:
+            return {
+                "error": "Invalid session ID"
+            }
+
+        conversation = (
+            self.conversation_manager.get_conversation(
+                session_id
+            )
+        )
+
+        status = session.get(
+            "status",
+            "in_progress"
+        )
+
+        scenario = session.get(
+            "scenario",
+            "Unknown"
+        )
+
+        agent1_config = session.get("agent1_config")
+        agent2_config = session.get("agent2_config")
+
+        report = self.report_generator.generate_report(
+            session_id,
+            conversation,
+            status,
+            scenario,
+            agent1_config,
+            agent2_config
+        )
+
+        # Store the generated score in the session
+        if "negotiation_score" in report:
+
+            self.session_manager.sessions[
+                session_id
+            ]["negotiation_score"] = report[
+                "negotiation_score"
+            ]
+
+        return report

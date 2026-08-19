@@ -84,11 +84,11 @@ SCENARIO_AGENTS = {
     },
 
     "Project Budget Allocation": {
-        "agent1_name": "Department Representative",
-        "agent1_role": "Department Representative",
-        "agent2_name": "Budget Manager",
-        "agent2_role": "Budget Manager",
-    }
+        "agent1_name": "Budget Requester",
+        "agent1_role": "Budget Requester",
+        "agent2_name": "Budget Allocator",
+        "agent2_role": "Budget Allocator",
+    },
 }
 
 SCENARIO_DEFAULTS = {
@@ -303,8 +303,8 @@ if scenario == "Vendor Pricing Negotiation":
     else:
 
         roles = [
-            "Department Representative",
-            "Budget Manager"
+            "Budget Requester",
+            "Budget Allocator"
         ]
 >>>>>>> 5b59981 (Add AI negotiation simulation, analytics and zig-zag UI)
 
@@ -374,6 +374,89 @@ else:
 
 
     # ========================================================
+    # HUMAN + AI AGENT CONFIGURATION
+    # ========================================================
+
+    config_col1, config_col2 = st.columns(2, gap="large")
+
+    # ========================================================
+    # HUMAN AGENT CONFIGURATION
+    # ========================================================
+
+    with config_col1:
+
+        st.markdown(
+            '<div class="section-title">👤 Your Agent Configuration</div>',
+            unsafe_allow_html=True
+        )
+
+        with st.container(border=True):
+
+            st.markdown(
+                f"### 👤 {role}"
+            )
+
+            st.write(
+                f"**Role:** {role}"
+            )
+
+            human_strategy = st.selectbox(
+                "Negotiation Strategy",
+                [
+                    "Collaborative",
+                    "Competitive",
+                    "Assertive",
+                    "Compromising",
+                    "Flexible"
+                ],
+                key=f"practice_human_strategy_{scenario}_{role}"
+            )
+
+            if role == scenario_agents["agent1_role"]:
+
+                default_human_starting = (
+                    SCENARIO_DEFAULTS[scenario]["agent1_starting"]
+                )
+
+                default_human_reservation = (
+                    SCENARIO_DEFAULTS[scenario]["agent1_reservation"]
+                )
+
+            else:
+
+                default_human_starting = (
+                    SCENARIO_DEFAULTS[scenario]["agent2_starting"]
+                )
+
+                default_human_reservation = (
+                    SCENARIO_DEFAULTS[scenario]["agent2_reservation"]
+                )
+
+            human_starting_target = st.number_input(
+                "Starting Target",
+                min_value=0.0,
+                step=1000.0,
+                value=float(default_human_starting),
+                key=f"practice_human_starting_target_{scenario}_{role}"
+            )
+
+            human_reservation_price = st.number_input(
+                "Reservation Price – Walk Away",
+                min_value=0.0,
+                step=1000.0,
+                value=float(default_human_reservation),
+                key=f"practice_human_reservation_price_{scenario}_{role}"
+            )
+
+            human_instructions = st.text_area(
+                "Custom Instructions",
+                placeholder="Optional instructions for your negotiation...",
+                height=120,
+                key=f"practice_human_instructions_{scenario}_{role}"
+            )
+
+
+    # ========================================================
     # DETERMINE THE AI'S ROLE
     # ========================================================
 
@@ -408,62 +491,64 @@ else:
     # AI AGENT CONFIGURATION
     # ========================================================
 
-    st.markdown(
-        '<div class="section-title">🤖 AI Agent Configuration</div>',
-        unsafe_allow_html=True
-    )
-
-    st.markdown(
-        '<div class="section-description">'
-        'The AI automatically takes the opposite role from you.'
-        '</div>',
-        unsafe_allow_html=True
-    )
-
-    with st.container(border=True):
+    with config_col2:
 
         st.markdown(
-            f"### 🤖 {ai_agent_name}"
+            '<div class="section-title">🤖 AI Agent Configuration</div>',
+            unsafe_allow_html=True
         )
 
-        st.write(
-            f"**Role:** {ai_agent_role}"
+        st.markdown(
+            '<div class="section-description">'
+            'The AI automatically takes the opposite role from you.'
+            '</div>',
+            unsafe_allow_html=True
         )
 
-        ai_strategy = st.selectbox(
-            "Negotiation Strategy",
-            [
-                "Collaborative",
-                "Competitive",
-                "Assertive",
-                "Compromising",
-                "Flexible"
-            ],
-            key="practice_ai_strategy"
-        )
+        with st.container(border=True):
 
-        ai_starting_target = st.number_input(
-            "Starting Target",
-            min_value=0.0,
-            step=1000.0,
-            value=float(ai_starting_target),
-            key="practice_ai_starting_target"
-        )
+            st.markdown(
+                f"### 🤖 {ai_agent_name}"
+            )
 
-        ai_reservation_price = st.number_input(
-            "Reservation Price – Walk Away",
-            min_value=0.0,
-            step=1000.0,
-            value=float(ai_reservation_price),
-            key="practice_ai_reservation_price"
-        )
+            st.write(
+                f"**Role:** {ai_agent_role}"
+            )
 
-        ai_instructions = st.text_area(
-            "Custom Instructions",
-            placeholder="Optional instructions for the AI agent...",
-            height=120,
-            key="practice_ai_instructions"
-        )
+            ai_strategy = st.selectbox(
+                "Negotiation Strategy",
+                [
+                    "Collaborative",
+                    "Competitive",
+                    "Assertive",
+                    "Compromising",
+                    "Flexible"
+                ],
+                key=f"practice_ai_strategy_{scenario}_{ai_agent_role}"
+            )
+
+            ai_starting_target = st.number_input(
+                "Starting Target",
+                min_value=0.0,
+                step=1000.0,
+                value=float(ai_starting_target),
+                key=f"practice_ai_starting_target_{scenario}_{ai_agent_role}"
+            )
+
+            ai_reservation_price = st.number_input(
+                "Reservation Price – Walk Away",
+                min_value=0.0,
+                step=1000.0,
+                value=float(ai_reservation_price),
+                key=f"practice_ai_reservation_price_{scenario}_{ai_agent_role}"
+            )
+
+            ai_instructions = st.text_area(
+                "Custom Instructions",
+                placeholder="Optional instructions for the AI agent...",
+                height=120,
+                key=f"practice_ai_instructions_{scenario}_{ai_agent_role}"
+            )
 
 
     # ========================================================
@@ -475,14 +560,10 @@ else:
         human_config = {
             "name": scenario_agents["agent1_name"],
             "role": scenario_agents["agent1_role"],
-            "strategy": "Collaborative",
-            "starting_target": float(
-                SCENARIO_DEFAULTS[scenario]["agent1_starting"]
-            ),
-            "reservation_price": float(
-                SCENARIO_DEFAULTS[scenario]["agent1_reservation"]
-            ),
-            "instructions": ""
+            "strategy": human_strategy,
+            "starting_target": float(human_starting_target),
+            "reservation_price": float(human_reservation_price),
+            "instructions": human_instructions
         }
 
         ai_config = {
@@ -499,14 +580,10 @@ else:
         human_config = {
             "name": scenario_agents["agent2_name"],
             "role": scenario_agents["agent2_role"],
-            "strategy": "Collaborative",
-            "starting_target": float(
-                SCENARIO_DEFAULTS[scenario]["agent2_starting"]
-            ),
-            "reservation_price": float(
-                SCENARIO_DEFAULTS[scenario]["agent2_reservation"]
-            ),
-            "instructions": ""
+            "strategy": human_strategy,
+            "starting_target": float(human_starting_target),
+            "reservation_price": float(human_reservation_price),
+            "instructions": human_instructions
         }
 
         ai_config = {

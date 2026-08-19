@@ -242,6 +242,10 @@ if (
                 "in_progress"
             )
 
+            # Update completed round from simulation response
+            if "round" in data:
+                st.session_state.simulation_round = data["round"]
+
             # Refresh conversation
             conversation_response = requests.get(
                 f"http://127.0.0.1:8000/negotiation/{session_id}",
@@ -804,6 +808,7 @@ if st.session_state.simulation_finished:
         st.error(
             "⛔ Negotiation stopped because the Gemini API quota was exceeded."
         )
+
 # ============================================================
 # NEGOTIATION ANALYTICS
 # ============================================================
@@ -943,7 +948,7 @@ if st.session_state.simulation_finished:
     # --------------------------------------------------------
     # Project Budget correction
     # --------------------------------------------------------
-    # The opening Budget Manager message contains the
+    # The opening Budget Allocator message contains the
     # TOTAL PROJECT BUDGET, e.g. ₹50 lakh.
     #
     # We don't want ₹50 lakh to become the department's
@@ -970,7 +975,7 @@ if st.session_state.simulation_finished:
             # containing the total project budget.
 
             if (
-                speaker == "Budget Manager"
+                speaker == "Budget Allocator"
                 and (
                     "total project budget" in text.lower()
                     or "total budget available" in text.lower()
@@ -1073,7 +1078,28 @@ if st.session_state.simulation_finished:
 
         if extracted_values:
 
-            initial_budget = extracted_values[0]
+            # Find the first actual Budget Requester proposal
+            initial_budget = None
+
+            for message in negotiation_messages:
+
+                speaker = message.get("speaker", "")
+                text = message.get("message", "")
+
+                if speaker in (
+                    "Budget Requester",
+                    "Department Representative"
+                ):
+
+                    values = extract_money_values(text)
+
+                    if values:
+                        initial_budget = values[-1]
+                        break
+
+            # Fallback
+            if initial_budget is None:
+                initial_budget = extracted_values[0]
 
             final_budget = extracted_values[-1]
 
@@ -1296,7 +1322,7 @@ if (
 
 st.divider()
 
-back_col, restart_col = st.columns(2)
+back_col, restart_col, report_col = st.columns(3)
 
 with back_col:
 
@@ -1328,3 +1354,14 @@ with restart_col:
         st.session_state.waiting_for_response = False
 
         st.rerun()
+        
+with report_col:
+
+    if st.button(
+        "📊 View Report",
+        use_container_width=True
+    ):
+
+        st.switch_page(
+            "pages/Reports.py"
+        )

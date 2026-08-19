@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import requests
 
+from utils.pdf_generator import generate_pdf_report
+
 from components.styles import load_css
 from components.navbar import show_navbar
 
@@ -15,37 +17,28 @@ load_css()
 show_navbar()
 
 # ==========================================
-# Header
-# ==========================================
-
-session_id = st.session_state.get("session_id")
-
-if not session_id:
-    st.warning(
-        "No negotiation report available. Please complete a negotiation first."
-    )
-    st.stop()
-
-# ==========================================
-# Get Report
+# Get Negotiation History
 # ==========================================
 
 try:
 
     response = requests.get(
-        f"http://127.0.0.1:8000/report/{session_id}"
+        "http://127.0.0.1:8000/reports/history",
+        timeout=10
     )
 
     if response.status_code == 200:
-        report = response.json()
+        history_data = response.json()
     else:
-        report = None
-        st.error("Unable to fetch report.")
+        history_data = []
+        st.error("Unable to fetch negotiation history.")
 
 except Exception as e:
 
-    report = None
+    history_data = []
     st.error(f"Backend connection failed.\n\n{e}")
+
+
 
 
 st.title("📊 Negotiation Reports & Analytics")
@@ -64,35 +57,79 @@ st.divider()
 
 st.subheader("📈 Overall Performance")
 
-col1, col2, col3, col4 = st.columns(4)
+total_negotiations = len(history_data)
 
-if report:
+agreements = sum(
+    1
+    for item in history_data
+    if item.get("status") == "agreement_reached"
+)
 
-    with col1:
-        st.metric("Scenario", report["scenario"])
+deadlocks = sum(
+    1
+    for item in history_data
+    if item.get("status") == "deadlock"
+)
 
-    with col2:
-        st.metric("Status", report["status"])
+max_rounds = sum(
+    1
+    for item in history_data
+    if item.get("status") == "max_rounds_reached"
+)
 
-    with col3:
-        st.metric("Rounds", report["total_rounds"])
+success_rate = (
+    (agreements / total_negotiations) * 100
+    if total_negotiations > 0
+    else 0
+)
 
-    with col4:
-        st.metric("Participants", len(report["participants"]))
+average_score = (
+    sum(
+        item.get("negotiation_score", 0)
+        for item in history_data
+    ) / total_negotiations
+    if total_negotiations > 0
+    else 0
+)
 
-else:
+col1, col2, col3, col4, col5, col6 = st.columns(6)  
 
-    with col1:
-        st.metric("Scenario", "-")
+with col1:
+    st.metric(
+        "Total Negotiations",
+        total_negotiations
+    )
 
-    with col2:
-        st.metric("Status", "-")
+with col2:
+    st.metric(
+        "Agreements",
+        agreements
+    )
 
-    with col3:
-        st.metric("Rounds", "-")
+with col3:
+    st.metric(
+        "Deadlocks",
+        deadlocks
+    )
 
-    with col4:
-        st.metric("Participants", "-")
+with col4:
+    st.metric(
+        "Max Rounds",
+        max_rounds
+    )
+
+with col5:
+    st.metric(
+        "Success Rate",
+        f"{success_rate:.1f}%"
+    )
+
+with col6:
+    st.metric(
+        "Average Score",
+        f"{average_score:.1f}/100"
+    )
+
 st.divider()
 
 # ==========================================
@@ -107,27 +144,63 @@ with left:
 
     st.markdown("### Success Trend")
 
-    trend = pd.DataFrame({
-        "Negotiations":[1,2,3,4,5,6,7],
-        "Success":[65,70,75,80,78,82,85]
-    })
+    completed = 0
+    successful = 0
 
-    st.line_chart(
-        trend.set_index("Negotiations")
-    )
+    trend_data = []
+
+    for item in history_data:
+
+        completed += 1
+
+        if item.get("status") == "agreement_reached":
+            successful += 1
+
+        success_rate = (
+            (successful / completed) * 100
+            if completed > 0
+            else 0
+        )
+
+        trend_data.append({
+            "Negotiations": completed,
+            "Success Rate": success_rate
+        })
+
+    trend = pd.DataFrame(trend_data)
+
+    if not trend.empty:
+
+        st.line_chart(
+            trend.set_index("Negotiations")
+        )
+
+    else:
+
+        st.info(
+            "Complete negotiations to view the success trend."
+        )
 
 with right:
 
     st.markdown("### Scenario Distribution")
 
+    scenario_counts = {}
+
+    for item in history_data:
+
+        scenario_name = item.get(
+            "scenario",
+            "Unknown"
+        )
+
+        scenario_counts[scenario_name] = (
+            scenario_counts.get(scenario_name, 0) + 1
+        )
+
     scenario = pd.DataFrame({
-        "Scenario":[
-            "Buyer-Supplier",
-            "HR-Candidate",
-            "Budget",
-            "Custom"
-        ],
-        "Count":[40,30,25,33]
+        "Scenario": list(scenario_counts.keys()),
+        "Count": list(scenario_counts.values())
     })
 
     st.bar_chart(
@@ -142,20 +215,50 @@ st.divider()
 
 st.subheader("📋 Negotiation History")
 
-if report:
+if history_data:
 
-    history = pd.DataFrame([
+        history = pd.DataFrame([
         {
-            "Scenario": report["scenario"],
-            "Rounds": report["total_rounds"],
-            "Status": report["status"],
-            "Participants": ", ".join(report["participants"])
+            "Session ID": item.get(
+                "session_id",
+                "-"
+            ),
+            "Scenario": item.get(
+                "scenario",
+                "-"
+            ),
+            "Mode": item.get(
+                "mode",
+                "-"
+            ),
+            "Rounds": item.get(
+                "rounds",
+                "-"
+            ),
+            "Score": item.get(
+                "negotiation_score",
+                "-"
+            ),
+            "Status": item.get(
+                "status",
+                "-"
+            )
         }
+        for item in history_data
     ])
 
 else:
 
-    history = pd.DataFrame()
+    history = pd.DataFrame(
+        columns=[
+            "Session ID",
+            "Scenario",
+            "Mode",
+            "Rounds",
+            "Score",
+            "Status"
+        ]
+    )
 
 st.dataframe(
     history,
@@ -165,18 +268,134 @@ st.dataframe(
 st.divider()
 
 # ==========================================
+# Score Breakdown
+# ==========================================
+
+st.subheader("📊 Negotiation Score Breakdown")
+
+if history_data:
+
+    selected_session = st.selectbox(
+        "Select a negotiation to view its score breakdown",
+        history_data,
+        format_func=lambda item: (
+            f"{item.get('session_id', '-')[:8]} — "
+            f"{item.get('scenario', '-')} — "
+            f"{item.get('negotiation_score', '-')}/100"
+        )
+    )
+
+    score_breakdown = selected_session.get(
+        "score_breakdown",
+        {}
+    )
+
+    if score_breakdown:
+
+        breakdown_data = {
+            "Outcome": (
+                score_breakdown.get("outcome", 0),
+                30
+            ),
+            "Deal Quality": (
+                score_breakdown.get("deal_quality", 0),
+                25
+            ),
+            "Strategy Adherence": (
+                score_breakdown.get(
+                    "strategy_adherence",
+                    0
+                ),
+                20
+            ),
+            "Concession Efficiency": (
+                score_breakdown.get(
+                    "concession_efficiency",
+                    0
+                ),
+                15
+            ),
+            "Boundary Management": (
+                score_breakdown.get(
+                    "boundary_management",
+                    0
+                ),
+                10
+            )
+        }
+
+        for category, values in breakdown_data.items():
+
+            score, maximum = values
+
+            col1, col2, col3 = st.columns(
+                [3, 1, 1]
+            )
+
+            with col1:
+                st.write(
+                    f"**{category}**"
+                )
+
+            with col2:
+                st.write(
+                    f"{score}/{maximum}"
+                )
+
+            with col3:
+                st.progress(
+                    score / maximum
+                    if maximum > 0
+                    else 0
+                )
+
+        st.divider()
+
+        total_score = score_breakdown.get(
+            "total",
+            selected_session.get(
+                "negotiation_score",
+                0
+            )
+        )
+
+        st.metric(
+            "🏆 Total Negotiation Score",
+            f"{total_score}/100"
+        )
+
+    else:
+
+        st.info(
+            "Score breakdown is not available for "
+            "this negotiation."
+        )
+
+else:
+
+    st.info(
+        "Complete a negotiation to view the score breakdown."
+    )
+
+st.divider()
+
+# ==========================================
 # Summary
 # ==========================================
 
 st.subheader("📄 Report Summary")
 
-if report:
+if history_data:
 
-    st.success(report["summary"])
+    st.success(
+        f"{total_negotiations} completed negotiations found."
+    )
 
 else:
 
-    st.warning("No report available.")
+    st.warning(
+        "No completed negotiations available."
+    )
 
 st.divider()
 
@@ -202,10 +421,31 @@ with col1:
 
 with col2:
 
-    st.button(
+    if st.button(
         "📄 Generate PDF Report",
         use_container_width=True
-    )
+    ):
+
+        pdf_path = "negotiation_report.pdf"
+
+        generate_pdf_report(
+            pdf_path,
+            history_data
+        )
+
+        with open(
+
+            pdf_path,
+            "rb"
+        ) as pdf_file:
+
+            st.download_button(
+                "⬇️ Download PDF Report",
+                pdf_file,
+                file_name="negotiation_report.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
 
 st.divider()
 

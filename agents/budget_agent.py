@@ -6,7 +6,7 @@ from llm.response_parser import parse_response
 class BudgetAgent:
 
     def __init__(self):
-        self.role = "Budget Advisor"
+        self.role = "Budget Allocator"
 
         self.goal = (
             "Ensure that every negotiated agreement stays within the available budget."
@@ -15,7 +15,7 @@ class BudgetAgent:
         self.constraints = (
             "Reject any offer that exceeds the approved budget. "
             "Provide clear financial advice."
-            "Always refer to yourself as the Budget Manager. "
+            "Always refer to yourself as the Budget Allocator. "
     
         )
 

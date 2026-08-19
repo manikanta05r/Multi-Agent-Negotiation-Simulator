@@ -6,7 +6,7 @@ from llm.response_parser import parse_response
 class DepartmentRepresentativeAgent:
 
     def __init__(self):
-        self.role = "Department Representative"
+        self.role = "Budget Requester"
 
         self.goal = (
             "Secure enough budget for the department to meet its operational "

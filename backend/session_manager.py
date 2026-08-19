@@ -33,6 +33,28 @@ class SessionManager:
         return self.sessions.get(session_id)
 
 
-    def update_status(self, session_id, status):
+    def update_status(
+        self,
+        session_id,
+        status,
+        rounds=None
+    ):
+
         if session_id in self.sessions:
+
             self.sessions[session_id]["status"] = status
+
+            if rounds is not None:
+
+                self.sessions[session_id]["rounds"] = rounds
+
+    def get_completed_sessions(self):
+
+        return [
+            {
+                "session_id": session_id,
+                **session
+            }
+            for session_id, session in self.sessions.items()
+            if session.get("status") != "in_progress"
+        ]

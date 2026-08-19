@@ -60,8 +60,8 @@ def get_negotiation(session_id: str):
         "Supplier",
         "Candidate",
         "HR Manager",
-        "Department Representative",
-        "Budget Manager"
+        "Budget Requester",
+        "Budget Allocator"
     ]
 
     rounds = sum(
@@ -93,9 +93,9 @@ def get_negotiation(session_id: str):
 
         elif scenario == "Project Budget Allocation":
             active_agent = (
-                "Department Representative"
+                "Budget Requester"
                 if rounds % 2 == 0
-                else "Budget Manager"
+                else "Budget Allocator"
             )
 
     return {
@@ -116,3 +116,8 @@ def get_conversation(session_id: str):
 @app.get("/report/{session_id}")
 def get_report(session_id: str):
     return orchestrator.generate_report(session_id)
+
+@app.get("/reports/history")
+def get_reports_history():
+
+    return orchestrator.session_manager.get_completed_sessions()
