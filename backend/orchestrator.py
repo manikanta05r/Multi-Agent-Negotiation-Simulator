@@ -729,23 +729,235 @@ class NegotiationOrchestrator:
         message
     ):
 
+        # ========================================================
+        # SAVE SYSTEM COMPLETION MESSAGE
+        # ========================================================
+
         self.conversation_manager.add_message(
             session_id,
             "System",
             "Negotiation completed successfully. Agreement reached."
         )
 
+        # ========================================================
+        # UPDATE STATUS
+        # ========================================================
+
         self.session_manager.update_status(
             session_id,
             "agreement_reached"
         )
 
+        # ========================================================
+        # CALCULATE ROUNDS
+        # ========================================================
+
+        conversation = (
+            self.conversation_manager.get_conversation(
+                session_id
+            )
+        )
+
+        valid_speakers = (
+            self._get_speaker_names(
+                self.session_manager
+                .get_session(session_id)
+                .get("scenario")
+            )
+        )
+
+        turn_count = sum(
+            1
+            for msg in conversation
+            if msg.get("speaker") in valid_speakers
+        )
+
+        rounds = turn_count // 2
+
+        # ========================================================
+        # SAVE ROUND COUNT
+        # ========================================================
+
+        self.session_manager.update_status(
+            session_id,
+            "agreement_reached",
+            rounds=rounds
+        )
+
+        # ========================================================
+        # SAVE REPORT TO DATABASE
+        # ========================================================
+
+        self._save_completed_negotiation(
+            session_id
+        )
+
+        # ========================================================
+        # RESPONSE
+        # ========================================================
+
         return {
             "session_id": session_id,
             "status": "agreement_reached",
             "speaker": speaker,
-            "message": message
+            "message": message,
+            "round": rounds
         }
+
+
+    # ============================================================
+    # GENERATE REPORT
+    # ============================================================
+
+    def generate_report(
+        self,
+        session_id
+    ):
+
+        # ========================================================
+        # GET SESSION
+        # ========================================================
+
+        session = (
+            self.session_manager.get_session(
+                session_id
+            )
+        )
+
+        if session is None:
+
+            return {
+                "error": "Invalid session ID"
+            }
+
+        # ========================================================
+        # GET CONVERSATION
+        # ========================================================
+
+        conversation = (
+            self.conversation_manager.get_conversation(
+                session_id
+            )
+        )
+
+        if conversation is None:
+            conversation = []
+
+        # ========================================================
+        # SESSION DATA
+        # ========================================================
+
+        scenario = session.get(
+            "scenario",
+            ""
+        )
+
+        status = session.get(
+            "status",
+            "in_progress"
+        )
+
+        agent1_config = session.get(
+            "agent1_config"
+        )
+
+        agent2_config = session.get(
+            "agent2_config"
+        )
+
+        # ========================================================
+        # GENERATE REPORT
+        # ========================================================
+
+        report = self.report_generator.generate_report(
+
+            session_id=session_id,
+
+            conversation=conversation,
+
+            status=status,
+
+            scenario=scenario,
+
+            agent1_config=agent1_config,
+
+            agent2_config=agent2_config
+        )
+
+        return report
+
+
+    # ============================================================
+    # SAVE COMPLETED NEGOTIATION
+    # ============================================================
+
+    def _save_completed_negotiation(
+        self,
+        session_id
+    ):
+
+        session = (
+            self.session_manager.get_session(
+                session_id
+            )
+        )
+
+        if session is None:
+            return None
+
+        conversation = (
+            self.conversation_manager.get_conversation(
+                session_id
+            )
+        )
+
+        if conversation is None:
+            conversation = []
+
+        report = self.report_generator.generate_report(
+
+            session_id=session_id,
+
+            conversation=conversation,
+
+            status=session.get(
+                "status",
+                "in_progress"
+            ),
+
+            scenario=session.get(
+                "scenario",
+                ""
+            ),
+
+            agent1_config=session.get(
+                "agent1_config"
+            ),
+
+            agent2_config=session.get(
+                "agent2_config"
+            )
+        )
+
+        return (
+            self.session_manager
+            .save_completed_session(
+
+                session_id=session_id,
+
+                negotiation_score=report.get(
+                    "negotiation_score"
+                ),
+
+                score_breakdown=report.get(
+                    "score_breakdown"
+                ),
+
+                summary=report.get(
+                    "summary"
+                )
+            )
+        )
 
     # ============================================================
     # SINGLE AI TURN
@@ -994,6 +1206,10 @@ class NegotiationOrchestrator:
                 "deadlock"
             )
 
+            self._save_completed_negotiation(
+                session_id
+            )
+
             return {
                 "session_id": session_id,
                 "status": "deadlock",
@@ -1033,7 +1249,12 @@ class NegotiationOrchestrator:
 
             self.session_manager.update_status(
                 session_id,
-                "max_rounds_reached"
+                "max_rounds_reached",
+                rounds=completed_rounds
+            )
+
+            self._save_completed_negotiation(
+                session_id
             )
 
             return {

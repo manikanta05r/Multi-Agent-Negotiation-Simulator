@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from schemas.next_round import NextRoundRequest
 from schemas.simulation import SimulationRequest
 from schemas.negotiation import NegotiationRequest
 
 from backend.orchestrator import NegotiationOrchestrator
+from database.operations import fetch_completed_negotiations
 
 
 # ============================================================
@@ -543,4 +544,46 @@ def get_report(
 
     return orchestrator.generate_report(
         session_id
+    )
+
+
+# ============================================================
+# NEGOTIATION REPORT HISTORY
+# ============================================================
+
+@app.get("/reports/history")
+def get_reports_history():
+    """
+    Return all completed negotiations stored in Supabase.
+
+    Used by the Reports Streamlit page.
+    """
+
+    try:
+        return fetch_completed_negotiations()
+
+    except Exception as e:
+
+        print(
+            "REPORT HISTORY ERROR:",
+            e
+        )
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to fetch negotiation history: {str(e)}"
+        )
+
+
+# ============================================================
+# REPORT HISTORY
+# ============================================================
+
+@app.get("/reports/history")
+def get_report_history():
+
+    return (
+        orchestrator
+        .session_manager
+        .get_completed_sessions()
     )
