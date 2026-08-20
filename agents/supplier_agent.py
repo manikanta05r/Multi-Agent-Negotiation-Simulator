@@ -6,16 +6,21 @@ from llm.response_parser import parse_response
 class SupplierAgent:
 
     def __init__(self):
+
         self.role = "Supplier"
 
         self.goal = (
-            "Sell the product at the highest possible price while reaching a successful deal."
+            "Sell the product at the highest reasonable price while "
+            "reaching a successful agreement."
         )
 
         self.constraints = (
             "Do not accept an offer below the minimum acceptable price. "
+            "Make reasonable concessions when necessary. "
+            "Base each counteroffer on the buyer's latest offer. "
+            "Do not repeat the same price multiple times. "
             "Be polite and professional. "
-            "Always try to negotiate a better price."
+            "If the buyer reaches a fair final price, accept explicitly."
         )
 
     def negotiate(
@@ -25,26 +30,40 @@ class SupplierAgent:
         agent_config=None
     ):
 
+        dynamic_constraints = self.constraints
+
         if agent_config:
 
-            strategy = agent_config.strategy
-
-            starting_target = agent_config.starting_target
-
-            reservation_price = agent_config.reservation_price
-
-            instructions = agent_config.instructions
-
-            dynamic_constraints = (
-                f"Negotiation strategy: {strategy}. "
-                f"Starting target: {starting_target}. "
-                f"Reservation price / walk-away: {reservation_price}. "
-                f"Custom instructions: {instructions}"
+            strategy = getattr(
+                agent_config,
+                "strategy",
+                None
             )
 
-        else:
+            starting_target = getattr(
+                agent_config,
+                "starting_target",
+                None
+            )
 
-            dynamic_constraints = self.constraints
+            reservation_price = getattr(
+                agent_config,
+                "reservation_price",
+                None
+            )
+
+            instructions = getattr(
+                agent_config,
+                "instructions",
+                None
+            )
+
+            dynamic_constraints += (
+                f" Negotiation strategy: {strategy}. "
+                f"Starting target price: {starting_target}. "
+                f"Minimum acceptable price: {reservation_price}. "
+                f"Custom instructions: {instructions}."
+            )
 
         prompt = build_prompt(
             role=self.role,

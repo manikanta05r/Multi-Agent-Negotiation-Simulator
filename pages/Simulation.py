@@ -1,6 +1,7 @@
 import streamlit as st
 import requests
 import time
+import re
 
 from components.styles import load_css
 from components.navbar import show_navbar
@@ -13,7 +14,7 @@ from components.navbar import show_navbar
 st.set_page_config(
     page_title="AI vs AI Simulation",
     page_icon="🤖",
-    layout="wide"
+    layout="wide",
 )
 
 load_css()
@@ -21,18 +22,15 @@ show_navbar()
 
 
 # ============================================================
-# SESSION STATE
+# BACKEND
 # ============================================================
 
-scenario = st.session_state.get("scenario", "")
-mode = st.session_state.get("mode", "AI vs AI")
-max_rounds = st.session_state.get("max_rounds", 10)
-session_id = st.session_state.get("session_id", "")
+BASE_URL = "http://127.0.0.1:8000"
 
-if not session_id:
-    st.error("No active negotiation found.")
-    st.stop()
 
+# ============================================================
+# SESSION STATE DEFAULTS
+# ============================================================
 
 defaults = {
     "simulation_messages": [],
@@ -42,60 +40,330 @@ defaults = {
     "simulation_status": "Waiting",
     "active_agent": None,
     "waiting_for_response": False,
+    "backend_agent1": None,
+    "backend_agent2": None,
+    "response_time": 2,
 }
 
 for key, value in defaults.items():
+
     if key not in st.session_state:
         st.session_state[key] = value
 
 
 # ============================================================
-# GET NEGOTIATION DETAILS
+# SESSION
 # ============================================================
-
-scenario = st.session_state.get(
-    "scenario",
-    "Vendor Pricing Negotiation"
-)
 
 session_id = st.session_state.get(
     "session_id",
-    ""
+    "",
+)
+
+if not session_id:
+
+    st.error(
+        "No active negotiation found."
+    )
+
+    st.stop()
+
+
+scenario = st.session_state.get(
+    "scenario",
+    "Vendor Pricing Negotiation",
 )
 
 max_rounds = st.session_state.get(
     "max_rounds",
-    10
+    10,
 )
 
-agent1 = st.session_state.get(
-    "agent1_config",
-    {}
+
+# ============================================================
+# SCENARIO AGENTS
+# ============================================================
+
+SCENARIO_AGENTS = {
+
+    "Vendor Pricing Negotiation": {
+        "agent1": "Buyer",
+        "agent2": "Supplier",
+    },
+
+    "Job Offer Negotiation": {
+        "agent1": "Candidate",
+        "agent2": "HR Manager",
+    },
+
+    "Project Budget Allocation": {
+        "agent1": "Budget Requester",
+        "agent2": "Budget Allocator",
+    },
+}
+
+
+fallback_agents = SCENARIO_AGENTS.get(
+    scenario,
+    {
+        "agent1": "Agent 1",
+        "agent2": "Agent 2",
+    },
 )
 
-agent2 = st.session_state.get(
-    "agent2_config",
-    {}
+
+# ============================================================
+# BACKEND GET
+# ============================================================
+
+def get_negotiation_state():
+
+    try:
+
+        response = requests.get(
+            f"{BASE_URL}/negotiation/{session_id}",
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            return None
+
+        data = response.json()
+
+        if data.get("error"):
+            return None
+
+        return data
+
+    except requests.exceptions.RequestException:
+
+        return None
+
+
+# ============================================================
+# NORMALIZE SPEAKER
+# ============================================================
+
+def normalize_speaker(speaker):
+
+    if speaker == "Department Representative":
+        return "Budget Requester"
+
+    if speaker == "department representative":
+        return "Budget Requester"
+
+    return speaker
+
+
+# ============================================================
+# NORMALIZE MESSAGES
+# ============================================================
+
+def normalize_messages(messages):
+
+    normalized = []
+
+    for message in messages or []:
+
+        if not isinstance(message, dict):
+            continue
+
+        item = dict(message)
+
+        item["speaker"] = normalize_speaker(
+            item.get("speaker")
+        )
+
+        normalized.append(item)
+
+    return normalized
+
+
+# ============================================================
+# APPLY BACKEND STATUS
+# ============================================================
+
+def apply_backend_status(status):
+
+    if status == "agreement_reached":
+
+        st.session_state.simulation_status = (
+            "Agreement Reached"
+        )
+
+        st.session_state.simulation_finished = True
+        st.session_state.active_agent = None
+
+
+    elif status == "deadlock":
+
+        st.session_state.simulation_status = (
+            "Deadlock"
+        )
+
+        st.session_state.simulation_finished = True
+        st.session_state.active_agent = None
+
+
+    elif status == "quota_exceeded":
+
+        st.session_state.simulation_status = (
+            "Quota Exceeded"
+        )
+
+        st.session_state.simulation_finished = True
+        st.session_state.active_agent = None
+
+
+    elif status == "max_rounds_reached":
+
+        st.session_state.simulation_status = (
+            "Maximum Rounds Reached"
+        )
+
+        st.session_state.simulation_finished = True
+        st.session_state.active_agent = None
+
+
+    elif status == "completed":
+
+        st.session_state.simulation_status = (
+            "Maximum Rounds Reached"
+        )
+
+        st.session_state.simulation_finished = True
+        st.session_state.active_agent = None
+
+
+    else:
+
+        st.session_state.simulation_status = (
+            "Negotiating"
+        )
+
+
+# ============================================================
+# REFRESH STATE
+# ============================================================
+
+def refresh_state():
+
+    data = get_negotiation_state()
+
+    if not data:
+        return False
+
+    # --------------------------------------------------------
+    # AGENTS
+    # --------------------------------------------------------
+
+    backend_agent1 = data.get(
+        "agent1"
+    )
+
+    backend_agent2 = data.get(
+        "agent2"
+    )
+
+    if backend_agent1:
+
+        st.session_state.backend_agent1 = (
+            normalize_speaker(
+                backend_agent1
+            )
+        )
+
+    if backend_agent2:
+
+        st.session_state.backend_agent2 = (
+            normalize_speaker(
+                backend_agent2
+            )
+        )
+
+
+    # --------------------------------------------------------
+    # MESSAGES
+    # --------------------------------------------------------
+
+    st.session_state.simulation_messages = (
+        normalize_messages(
+            data.get(
+                "messages",
+                [],
+            )
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # ROUND
+    # --------------------------------------------------------
+
+    st.session_state.simulation_round = (
+        data.get(
+            "round",
+            0,
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # MAX ROUNDS
+    # --------------------------------------------------------
+
+    backend_max_rounds = data.get(
+        "max_rounds"
+    )
+
+    if backend_max_rounds is not None:
+
+        st.session_state.max_rounds = (
+            backend_max_rounds
+        )
+
+
+    # --------------------------------------------------------
+    # ACTIVE AGENT
+    # --------------------------------------------------------
+
+    if not st.session_state.simulation_finished:
+
+        st.session_state.active_agent = (
+            normalize_speaker(
+                data.get(
+                    "active_agent"
+                )
+            )
+        )
+
+
+    # --------------------------------------------------------
+    # STATUS
+    # --------------------------------------------------------
+
+    apply_backend_status(
+        data.get(
+            "status",
+            "in_progress",
+        )
+    )
+
+    return True
+
+
+# ============================================================
+# AUTHORITATIVE AGENT NAMES
+# ============================================================
+
+agent1_name = (
+    st.session_state.backend_agent1
+    or fallback_agents["agent1"]
 )
 
-agent1_name = agent1.get(
-    "name",
-    "Buyer"
-)
-
-agent1_role = agent1.get(
-    "role",
-    "Buyer"
-)
-
-agent2_name = agent2.get(
-    "name",
-    "Supplier"
-)
-
-agent2_role = agent2.get(
-    "role",
-    "Supplier"
+agent2_name = (
+    st.session_state.backend_agent2
+    or fallback_agents["agent2"]
 )
 
 
@@ -103,7 +371,9 @@ agent2_role = agent2.get(
 # HEADER
 # ============================================================
 
-st.title("🤖 AI vs AI Negotiation")
+st.title(
+    "🤖 AI vs AI Negotiation"
+)
 
 st.write(
     f"### {scenario}"
@@ -115,345 +385,167 @@ st.caption(
 
 st.divider()
 
+
 # ============================================================
-# AUTOMATIC BACKEND NEGOTIATION — ONE TURN AT A TIME
+# INITIALIZE
 # ============================================================
 
-if (
-    session_id
-    and not st.session_state.simulation_started
-):
+if not st.session_state.simulation_started:
 
     st.session_state.simulation_started = True
-    st.session_state.simulation_status = "Negotiating"
 
-    # The opening message already exists from /start-negotiation.
-    # Get the latest negotiation state first.
+    st.session_state.simulation_status = (
+        "Negotiating"
+    )
 
-    try:
-
-        response = requests.get(
-            f"http://127.0.0.1:8000/negotiation/{session_id}",
-            timeout=10
-        )
-
-        if response.status_code == 200:
-
-            data = response.json()
-
-            messages = data.get(
-                "messages",
-                []
-            )
-
-            st.session_state.simulation_messages = messages
-
-    except requests.exceptions.RequestException as e:
-
-        st.error(
-            f"Unable to connect to backend.\n\n{e}"
-        )
-
-        st.session_state.simulation_finished = True
+    refresh_state()
 
 
 # ============================================================
-# EXECUTE ONE AI TURN
+# REFRESH BACKEND STATE
 # ============================================================
 
-if (
-    session_id
-    and st.session_state.simulation_started
-    and not st.session_state.simulation_finished
-):
+if not st.session_state.simulation_finished:
+
+    refresh_state()
+
+
+# ============================================================
+# DETERMINE IF NEGOTIATION SHOULD CONTINUE
+# ============================================================
+
+should_continue = (
+    not st.session_state.simulation_finished
+    and not st.session_state.waiting_for_response
+)
+
+
+# ============================================================
+# EXECUTE ONE TURN
+# ============================================================
+
+if should_continue:
+
+    # --------------------------------------------------------
+    # IMPORTANT:
+    #
+    # The backend controls the speaker.
+    #
+    # We only ask it for ONE turn.
+    # --------------------------------------------------------
+
+    st.session_state.waiting_for_response = True
+
+    st.session_state.simulation_status = (
+        "Thinking"
+    )
+
+    response_time = st.session_state.get(
+        "response_time",
+        2,
+    )
+
+    # --------------------------------------------------------
+    # THINKING DELAY
+    # --------------------------------------------------------
+
+    time.sleep(
+        response_time
+    )
 
     try:
-
-        # Determine which agent should respond
-        conversation = st.session_state.simulation_messages
-
-        negotiation_speakers = [
-            msg.get("speaker")
-            for msg in conversation
-            if msg.get("speaker") in [
-                agent1_name,
-                agent1_role,
-                agent2_name,
-                agent2_role
-            ]
-        ]
-
-        if negotiation_speakers:
-
-            last_speaker = negotiation_speakers[-1]
-
-            if last_speaker in (
-                agent1_name,
-                agent1_role
-            ):
-
-                st.session_state.active_agent = agent2_name
-
-            else:
-
-                st.session_state.active_agent = agent1_name
-
-        else:
-
-            st.session_state.active_agent = agent1_name
-
-        # ----------------------------------------------------
-        # AI THINKING STATE
-        # ----------------------------------------------------
-
-        if not st.session_state.waiting_for_response:
-
-            st.session_state.simulation_status = "Thinking"
-            st.session_state.waiting_for_response = True
-
-            st.rerun()
-
-        # ----------------------------------------------------
-        # ASK BACKEND FOR ONE AI TURN
-        # ----------------------------------------------------
-        time.sleep(
-            st.session_state.get(
-                "response_time",
-                2
-            )
-        )
 
         response = requests.post(
-            "http://127.0.0.1:8000/simulate-next-turn",
+            f"{BASE_URL}/simulate-next-turn",
             json={
                 "session_id": session_id
             },
-            timeout=120
+            timeout=120,
         )
 
-        if response.status_code == 200:
+
+        # ====================================================
+        # BACKEND ERROR
+        # ====================================================
+
+        if response.status_code != 200:
 
             st.session_state.waiting_for_response = False
 
-            data = response.json()
-
-            status = data.get(
-                "status",
-                "in_progress"
+            st.session_state.simulation_status = (
+                "Backend Error"
             )
 
-            # Refresh conversation
-            conversation_response = requests.get(
-                f"http://127.0.0.1:8000/negotiation/{session_id}",
-                timeout=10
-            )
+            st.session_state.simulation_finished = True
 
-            if conversation_response.status_code == 200:
-
-                negotiation_data = (
-                    conversation_response.json()
-                )
-
-                messages = negotiation_data.get(
-                    "messages",
-                    []
-                )
-
-                st.session_state.simulation_messages = (
-                    messages
-                )
-
-                st.session_state.simulation_round = (
-                    negotiation_data.get(
-                        "round",
-                        st.session_state.simulation_round
-                    )
-                )
-
-            # ------------------------------------------------
-            # FINISHED STATES
-            # ------------------------------------------------
-
-            if status == "agreement_reached":
-
-                st.session_state.simulation_status = (
-                    "Agreement Reached"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            elif status == "deadlock":
-
-                st.session_state.simulation_status = (
-                    "Deadlock"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            elif status == "quota_exceeded":
-
-                st.session_state.simulation_status = (
-                    "Quota Exceeded"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            elif status == "max_rounds_reached":
-
-                st.session_state.simulation_status = (
-                    "Maximum Rounds Reached"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            else:
-
-                st.session_state.simulation_status = (
-                    "Negotiating"
-                )
-
-        else:
-
-            st.session_state.waiting_for_response = False
+            st.session_state.active_agent = None
 
             st.error(
                 f"Backend error: {response.text}"
             )
 
-            st.session_state.simulation_finished = True
-            st.session_state.active_agent = None
+
+        else:
+
+            result = response.json()
+
+            # ------------------------------------------------
+            # REFRESH AFTER TURN
+            # ------------------------------------------------
+
+            refresh_state()
+
+            # ------------------------------------------------
+            # APPLY EXACT BACKEND STATUS
+            # ------------------------------------------------
+
+            apply_backend_status(
+                result.get(
+                    "status",
+                    "in_progress",
+                )
+            )
+
+            # ------------------------------------------------
+            # TURN COMPLETE
+            # ------------------------------------------------
+
+            st.session_state.waiting_for_response = False
+
 
     except requests.exceptions.RequestException as e:
 
-        st.error(
-            f"Unable to connect to backend.\n\n{e}"
-        )
         st.session_state.waiting_for_response = False
+
+        st.session_state.simulation_status = (
+            "Backend Error"
+        )
+
         st.session_state.simulation_finished = True
+
         st.session_state.active_agent = None
 
-# ============================================================
-# GET LATEST NEGOTIATION STATE
-# ============================================================
-
-if session_id:
-
-    try:
-
-        response = requests.get(
-            f"http://127.0.0.1:8000/negotiation/{session_id}",
-            timeout=10
+        st.error(
+            "Unable to connect to backend.\n\n"
+            f"{e}"
         )
 
-        if response.status_code == 200:
 
-            data = response.json()
+# ============================================================
+# FINAL STATE REFRESH
+# ============================================================
 
-            # ------------------------------------------------
-            # ACTIVE AGENT
-            # ------------------------------------------------
+if not st.session_state.simulation_finished:
 
-            active_agent = data.get(
-                "active_agent",
-                None
-            )
-
-            if not st.session_state.simulation_finished:
-                st.session_state.active_agent = active_agent
-
-
-            # ------------------------------------------------
-            # ROUND
-            # ------------------------------------------------
-
-            backend_round = data.get(
-                "round",
-                st.session_state.simulation_round
-            )
-
-            st.session_state.simulation_round = backend_round
-
-
-            # ------------------------------------------------
-            # MESSAGES
-            # ------------------------------------------------
-
-            messages = data.get(
-                "messages",
-                []
-            )
-
-            if messages:
-                st.session_state.simulation_messages = messages
-
-
-            # ------------------------------------------------
-            # STATUS
-            # ------------------------------------------------
-
-            backend_status = data.get(
-                "status",
-                "in_progress"
-            )
-
-            if backend_status == "agreement_reached":
-
-                st.session_state.simulation_status = (
-                    "Agreement Reached"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            elif backend_status == "deadlock":
-
-                st.session_state.simulation_status = (
-                    "Deadlock"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            elif backend_status == "quota_exceeded":
-
-                st.session_state.simulation_status = (
-                    "Quota Exceeded"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            elif backend_status in (
-                "completed",
-                "max_rounds_reached"
-            ):
-
-                st.session_state.simulation_status = (
-                    "Maximum Rounds Reached"
-                )
-
-                st.session_state.simulation_finished = True
-                st.session_state.active_agent = None
-
-            elif not st.session_state.simulation_finished:
-
-                st.session_state.simulation_status = (
-                    "Negotiating"
-                )
-
-    except requests.exceptions.RequestException:
-        pass
+    refresh_state()
 
 
 # ============================================================
-# NEGOTIATION STATUS
+# STATUS
 # ============================================================
 
 status = st.session_state.simulation_status
+
 
 if status == "Agreement Reached":
 
@@ -461,11 +553,13 @@ if status == "Agreement Reached":
         "✅ Agreement Reached"
     )
 
+
 elif status == "Deadlock":
 
     st.warning(
         "⚠️ Negotiation ended due to deadlock."
     )
+
 
 elif status == "Quota Exceeded":
 
@@ -473,11 +567,27 @@ elif status == "Quota Exceeded":
         "⛔ Gemini API quota exceeded."
     )
 
+
 elif status == "Maximum Rounds Reached":
 
     st.warning(
         "⚠️ Maximum negotiation rounds reached."
     )
+
+
+elif status == "Thinking":
+
+    st.info(
+        "🤖 AI is thinking..."
+    )
+
+
+elif status == "Backend Error":
+
+    st.error(
+        "❌ Backend connection error."
+    )
+
 
 else:
 
@@ -492,151 +602,143 @@ else:
 
 agent1_col, agent2_col = st.columns(
     2,
-    gap="large"
+    gap="large",
 )
 
 
 # ============================================================
-# AGENT 1 CARD
+# AGENT CARD FUNCTION
+# ============================================================
+
+def render_agent_card(
+    agent_name,
+    icon,
+):
+
+    with st.container(border=True):
+
+        st.markdown(
+            f"## {icon} {agent_name}"
+        )
+
+        st.caption(
+            f"Role: {agent_name}"
+        )
+
+        st.divider()
+
+        # ----------------------------------------------------
+        # ACTIVE
+        # ----------------------------------------------------
+
+        if (
+            st.session_state.active_agent
+            == agent_name
+            and not st.session_state.simulation_finished
+        ):
+
+            st.warning(
+                "🟡 AI is thinking..."
+            )
+
+
+        # ----------------------------------------------------
+        # FINISHED
+        # ----------------------------------------------------
+
+        elif st.session_state.simulation_finished:
+
+            st.success(
+                "🟢 Negotiation Complete"
+            )
+
+
+        # ----------------------------------------------------
+        # WAITING
+        # ----------------------------------------------------
+
+        else:
+
+            st.success(
+                "🟢 Waiting for turn"
+            )
+
+
+        # ----------------------------------------------------
+        # MESSAGES
+        # ----------------------------------------------------
+
+        agent_messages = [
+
+            message
+
+            for message
+            in st.session_state.simulation_messages
+
+            if normalize_speaker(
+                message.get("speaker")
+            )
+            == agent_name
+
+        ]
+
+
+        # ----------------------------------------------------
+        # LATEST MESSAGE
+        # ----------------------------------------------------
+
+        if agent_messages:
+
+            latest = agent_messages[-1]
+
+            st.markdown(
+                "**Latest Response**"
+            )
+
+            st.write(
+                latest.get(
+                    "message",
+                    "",
+                )
+            )
+
+        else:
+
+            st.caption(
+                "Waiting for negotiation..."
+            )
+
+
+# ============================================================
+# AGENT 1
 # ============================================================
 
 with agent1_col:
 
-    with st.container(border=True):
-
-        st.markdown(
-            f"## 🤖 {agent1_name}"
-        )
-
-        st.caption(
-            f"Role: {agent1_role}"
-        )
-
-        st.divider()
-
-        if st.session_state.active_agent in (
-            agent1_name,
-            agent1_role
-        ):
-
-            st.warning(
-                "🟡 AI is thinking..."
-            )
-
-        elif st.session_state.simulation_finished:
-
-            st.success(
-                "🟢 Negotiation Complete"
-            )
-
-        else:
-
-            st.success(
-                "🟢 Ready"
-            )
-
-        # Latest message from Agent 1
-
-        agent1_messages = [
-            message
-            for message in st.session_state.simulation_messages
-            if message.get("speaker") == agent1_name
-            or message.get("speaker") == agent1_role
-        ]
-
-        if agent1_messages:
-
-            latest = agent1_messages[-1]
-
-            st.markdown(
-                "**Latest Response**"
-            )
-
-            st.write(
-                latest.get(
-                    "message",
-                    ""
-                )
-            )
-
-        else:
-
-            st.caption(
-                "Waiting for negotiation..."
-            )
+    render_agent_card(
+        agent1_name,
+        "🟣",
+    )
 
 
 # ============================================================
-# AGENT 2 CARD
+# AGENT 2
 # ============================================================
 
 with agent2_col:
 
-    with st.container(border=True):
+    render_agent_card(
+        agent2_name,
+        "🟠",
+    )
 
-        st.markdown(
-            f"## 🤖 {agent2_name}"
-        )
 
-        st.caption(
-            f"Role: {agent2_role}"
-        )
-
-        st.divider()
-
-        if st.session_state.active_agent in (
-            agent2_name,
-            agent2_role
-        ):
-
-            st.warning(
-                "🟡 AI is thinking..."
-            )
-
-        elif st.session_state.simulation_finished:
-
-            st.success(
-                "🟢 Negotiation Complete"
-            )
-
-        else:
-
-            st.success(
-                "🟢 Ready"
-            )
-
-        # Latest message from Agent 2
-
-        agent2_messages = [
-            message
-            for message in st.session_state.simulation_messages
-            if message.get("speaker") == agent2_name
-            or message.get("speaker") == agent2_role
-        ]
-
-        if agent2_messages:
-
-            latest = agent2_messages[-1]
-
-            st.markdown(
-                "**Latest Response**"
-            )
-
-            st.write(
-                latest.get(
-                    "message",
-                    ""
-                )
-            )
-
-        else:
-
-            st.caption(
-                "Waiting for negotiation..."
-            )
 # ============================================================
-# CURRENT ACTIVE AGENT
+# ACTIVE AGENT
 # ============================================================
+
+st.divider()
+
 
 if (
     st.session_state.active_agent
@@ -648,11 +750,13 @@ if (
         "is currently negotiating..."
     )
 
+
 elif st.session_state.simulation_finished:
 
     st.success(
         "✅ Both agents have completed the negotiation."
     )
+
 
 # ============================================================
 # NEGOTIATION INFORMATION
@@ -660,37 +764,54 @@ elif st.session_state.simulation_finished:
 
 st.divider()
 
-info1, info2, info3 = st.columns(3)
+info1, info2, info3 = st.columns(
+    3
+)
+
 
 with info1:
 
     st.metric(
         "Negotiation Round",
-        f"{st.session_state.simulation_round}/{max_rounds}"
+        (
+            f"{st.session_state.simulation_round}"
+            f"/{st.session_state.max_rounds}"
+        ),
     )
+
 
 with info2:
 
     st.metric(
         "Mode",
-        "AI vs AI"
+        "AI vs AI",
     )
+
 
 with info3:
 
     st.metric(
         "Status",
-        status
+        status,
     )
+
+
 # ============================================================
-# FINAL NEGOTIATION RESULT
+# FINAL RESULT
 # ============================================================
 
 if st.session_state.simulation_finished:
 
     st.divider()
 
-    st.subheader("🎉 Negotiation Result")
+    st.subheader(
+        "🎉 Negotiation Result"
+    )
+
+
+    # ========================================================
+    # AGREEMENT
+    # ========================================================
 
     if status == "Agreement Reached":
 
@@ -698,62 +819,79 @@ if st.session_state.simulation_finished:
             "✅ Agreement Reached Successfully"
         )
 
-        result_col1, result_col2 = st.columns(2)
+        result_col1, result_col2 = st.columns(
+            2
+        )
+
 
         with result_col1:
 
-            st.markdown("### 🤝 Final Agreement")
+            st.markdown(
+                "### 🤝 Final Agreement"
+            )
 
-            # Find the latest meaningful AI message
             final_message = ""
 
             for message in reversed(
                 st.session_state.simulation_messages
             ):
 
-                speaker = message.get(
-                    "speaker",
-                    ""
+                speaker = normalize_speaker(
+                    message.get(
+                        "speaker",
+                        "",
+                    )
                 )
 
                 if speaker in (
                     agent1_name,
-                    agent1_role,
                     agent2_name,
-                    agent2_role
                 ):
 
                     final_message = message.get(
                         "message",
-                        ""
+                        "",
                     )
 
                     break
 
+
             st.info(
                 final_message
                 if final_message
-                else "Agreement successfully reached."
+                else
+                "Agreement successfully reached."
             )
+
 
         with result_col2:
 
-            st.markdown("### 📊 Negotiation Summary")
+            st.markdown(
+                "### 📊 Negotiation Summary"
+            )
 
             st.metric(
                 "Rounds Completed",
-                f"{st.session_state.simulation_round}/{max_rounds}"
+                (
+                    f"{st.session_state.simulation_round}"
+                    f"/{st.session_state.max_rounds}"
+                ),
             )
 
             st.metric(
                 "Mode",
-                "AI vs AI"
+                "AI vs AI",
             )
 
             st.metric(
                 "Participants",
-                f"{agent1_name} ↔ {agent2_name}"
+                f"{agent1_name} ↔ {agent2_name}",
             )
+
+
+    # ========================================================
+    # DEADLOCK
+    # ========================================================
 
     elif status == "Deadlock":
 
@@ -761,21 +899,10 @@ if st.session_state.simulation_finished:
             "⚠️ Negotiation ended without an agreement."
         )
 
-        result_col1, result_col2 = st.columns(2)
 
-        with result_col1:
-
-            st.metric(
-                "Rounds Completed",
-                f"{st.session_state.simulation_round}/{max_rounds}"
-            )
-
-        with result_col2:
-
-            st.metric(
-                "Status",
-                "Deadlock"
-            )
+    # ========================================================
+    # MAX ROUNDS
+    # ========================================================
 
     elif status == "Maximum Rounds Reached":
 
@@ -783,148 +910,142 @@ if st.session_state.simulation_finished:
             "⚠️ Maximum negotiation rounds reached."
         )
 
-        result_col1, result_col2 = st.columns(2)
 
-        with result_col1:
-
-            st.metric(
-                "Rounds Completed",
-                f"{st.session_state.simulation_round}/{max_rounds}"
-            )
-
-        with result_col2:
-
-            st.metric(
-                "Status",
-                "Maximum Rounds Reached"
-            )
+    # ========================================================
+    # QUOTA
+    # ========================================================
 
     elif status == "Quota Exceeded":
 
         st.error(
-            "⛔ Negotiation stopped because the Gemini API quota was exceeded."
+            "⛔ Negotiation stopped because "
+            "the Gemini API quota was exceeded."
         )
+
+
 # ============================================================
-# NEGOTIATION ANALYTICS
+# ANALYTICS
 # ============================================================
 
 if st.session_state.simulation_finished:
 
     st.divider()
 
-    st.subheader("📊 Negotiation Analytics")
+    st.subheader(
+        "📊 Negotiation Analytics"
+    )
 
-    messages = st.session_state.simulation_messages
+    messages = (
+        st.session_state.simulation_messages
+    )
 
-    # --------------------------------------------------------
-    # Collect negotiation messages
-    # --------------------------------------------------------
+
+    # ========================================================
+    # NEGOTIATION MESSAGES
+    # ========================================================
 
     negotiation_messages = [
+
         message
+
         for message in messages
-        if message.get("speaker") in (
-            agent1_name,
-            agent1_role,
-            agent2_name,
-            agent2_role
+
+        if normalize_speaker(
+            message.get("speaker")
         )
+        in (
+            agent1_name,
+            agent2_name,
+        )
+
     ]
 
-    # --------------------------------------------------------
-    # Smart monetary value extraction
-    # --------------------------------------------------------
 
-    import re
-
+    # ========================================================
+    # MONEY EXTRACTION
+    # ========================================================
 
     def extract_money_values(text):
 
         values = []
 
-        # ---------------------------------------------
-        # ₹30 lakh / ₹30.5 lakh
-        # ---------------------------------------------
+        if not text:
+            return values
 
-        lakh_matches = re.findall(
-            r"₹\s*([\d,]+(?:\.\d+)?)\s*(?:lakh|lakhs)",
-            text,
-            flags=re.IGNORECASE
+        pattern = re.compile(
+            r"₹\s*([\d,]+(?:\.\d+)?)\s*"
+            r"(LPA|lakhs?|lakh)?",
+            flags=re.IGNORECASE,
         )
 
-        for value in lakh_matches:
+        for match in pattern.finditer(text):
 
-            value = value.replace(",", "")
+            raw_value = (
+                match.group(1)
+                .replace(",", "")
+            )
+
+            unit = (
+                match.group(2)
+                or ""
+            ).lower()
 
             try:
 
-                values.append(
-                    float(value) * 100000
+                value = float(
+                    raw_value
                 )
 
             except ValueError:
 
-                pass
+                continue
 
-        # ---------------------------------------------
-        # ₹10 LPA / ₹12 LPA
-        # ---------------------------------------------
 
-        lpa_matches = re.findall(
-            r"₹\s*([\d,]+(?:\.\d+)?)\s*LPA",
-            text,
-            flags=re.IGNORECASE
-        )
+            if unit == "lpa":
 
-        for value in lpa_matches:
+                value *= 100000
 
-            value = value.replace(",", "")
 
-            try:
+            elif unit in (
+                "lakh",
+                "lakhs",
+            ):
 
-                values.append(
-                    float(value) * 100000
-                )
+                value *= 100000
 
-            except ValueError:
 
-                pass
-
-        # ---------------------------------------------
-        # Normal ₹ amounts
-        # Example:
-        # ₹100,000
-        # ₹97,500
-        # ₹2,400,000
-        # ---------------------------------------------
-
-        normal_matches = re.findall(
-            r"₹\s*([\d,]+(?:\.\d+)?)"
-            r"(?!\s*(?:lakh|lakhs|LPA))",
-            text,
-            flags=re.IGNORECASE
-        )
-
-        for value in normal_matches:
-
-            value = value.replace(",", "")
-
-            try:
-
-                values.append(
-                    float(value)
-                )
-
-            except ValueError:
-
-                pass
+            values.append(
+                value
+            )
 
         return values
 
 
-    # --------------------------------------------------------
-    # Extract all monetary values from negotiation
-    # --------------------------------------------------------
+    # ========================================================
+    # FORMAT LPA
+    # ========================================================
+
+    def format_lpa(value):
+
+        lpa = (
+            float(value)
+            / 100000
+        )
+
+        if lpa.is_integer():
+
+            return (
+                f"₹{int(lpa)} LPA"
+            )
+
+        return (
+            f"₹{lpa:.1f} LPA"
+        )
+
+
+    # ========================================================
+    # EXTRACT VALUES
+    # ========================================================
 
     extracted_values = []
 
@@ -932,23 +1053,19 @@ if st.session_state.simulation_finished:
 
         text = message.get(
             "message",
-            ""
+            "",
         )
 
-        values = extract_money_values(text)
+        extracted_values.extend(
+            extract_money_values(
+                text
+            )
+        )
 
-        extracted_values.extend(values)
 
-
-    # --------------------------------------------------------
-    # Project Budget correction
-    # --------------------------------------------------------
-    # The opening Budget Manager message contains the
-    # TOTAL PROJECT BUDGET, e.g. ₹50 lakh.
-    #
-    # We don't want ₹50 lakh to become the department's
-    # starting request.
-    # --------------------------------------------------------
+    # ========================================================
+    # PROJECT BUDGET FILTER
+    # ========================================================
 
     if scenario == "Project Budget Allocation":
 
@@ -956,190 +1073,271 @@ if st.session_state.simulation_finished:
 
         for message in negotiation_messages:
 
-            speaker = message.get(
-                "speaker",
-                ""
+            speaker = normalize_speaker(
+                message.get(
+                    "speaker",
+                    "",
+                )
             )
 
             text = message.get(
                 "message",
-                ""
+                "",
             )
 
-            # Skip the opening Budget Manager message
-            # containing the total project budget.
+            lower_text = text.lower()
+
+
+            # ------------------------------------------------
+            # Ignore total project budget references.
+            # ------------------------------------------------
 
             if (
-                speaker == "Budget Manager"
-                and (
-                    "total project budget" in text.lower()
-                    or "total budget available" in text.lower()
-                )
+                "total project budget"
+                in lower_text
+                or
+                "total budget available"
+                in lower_text
             ):
 
                 continue
 
+
             filtered_values.extend(
-                extract_money_values(text)
+                extract_money_values(
+                    text
+                )
             )
+
 
         extracted_values = filtered_values
 
 
+    # ========================================================
+    # VENDOR ANALYTICS
+    # ========================================================
 
-    # --------------------------------------------------------
-    # Scenario-specific analytics
-    # --------------------------------------------------------
+    if (
+        scenario
+        == "Vendor Pricing Negotiation"
+        and extracted_values
+    ):
 
-    if scenario == "Vendor Pricing Negotiation":
+        starting_price = (
+            extracted_values[0]
+        )
 
-        if extracted_values:
+        final_price = (
+            extracted_values[-1]
+        )
 
-            starting_price = extracted_values[0]
+        price_difference = (
+            starting_price
+            - final_price
+        )
 
-            final_price = extracted_values[-1]
 
-            price_difference = (
-                starting_price - final_price
+        st.markdown(
+            "### 💰 Pricing Analysis"
+        )
+
+
+        col1, col2, col3 = st.columns(
+            3
+        )
+
+
+        with col1:
+
+            st.metric(
+                "Starting Price",
+                f"₹{starting_price:,.0f}",
             )
 
-            st.markdown(
-                "### 💰 Pricing Analysis"
+
+        with col2:
+
+            st.metric(
+                "Final Price",
+                f"₹{final_price:,.0f}",
             )
 
-            col1, col2, col3 = st.columns(3)
 
-            with col1:
+        with col3:
 
-                st.metric(
-                    "Starting Price",
-                    f"₹{starting_price:,.0f}"
-                )
-
-            with col2:
-
-                st.metric(
-                    "Final Price",
-                    f"₹{final_price:,.0f}"
-                )
-
-            with col3:
-
-                st.metric(
-                    "Price Difference",
-                    f"₹{price_difference:,.0f}"
-                )
-
-    elif scenario == "Job Offer Negotiation":
-
-        if extracted_values:
-
-            starting_salary = extracted_values[0]
-
-            final_salary = extracted_values[-1]
-
-            salary_difference = (
-                final_salary - starting_salary
+            st.metric(
+                "Price Difference",
+                f"₹{price_difference:,.0f}",
             )
 
-            st.markdown(
-                "### 💼 Salary Analysis"
+
+    # ========================================================
+    # JOB OFFER ANALYTICS
+    # ========================================================
+
+    elif (
+        scenario
+        == "Job Offer Negotiation"
+        and extracted_values
+    ):
+
+        starting_salary = (
+            extracted_values[0]
+        )
+
+        final_salary = (
+            extracted_values[-1]
+        )
+
+        salary_difference = (
+            final_salary
+            - starting_salary
+        )
+
+
+        st.markdown(
+            "### 💼 Salary Analysis"
+        )
+
+
+        col1, col2, col3 = st.columns(
+            3
+        )
+
+
+        with col1:
+
+            st.metric(
+                "Initial Salary",
+                format_lpa(
+                    starting_salary
+                ),
             )
 
-            col1, col2, col3 = st.columns(3)
 
-            with col1:
+        with col2:
 
-                st.metric(
-                    "Initial Salary",
-                    f"₹{starting_salary:,.0f}"
-                )
-
-            with col2:
-
-                st.metric(
-                    "Final Salary",
-                    f"₹{final_salary:,.0f}"
-                )
-
-            with col3:
-
-                st.metric(
-                    "Salary Increase",
-                    f"₹{salary_difference:,.0f}"
-                )
-
-    elif scenario == "Project Budget Allocation":
-
-        if extracted_values:
-
-            initial_budget = extracted_values[0]
-
-            final_budget = extracted_values[-1]
-
-            budget_difference = (
-                initial_budget - final_budget
+            st.metric(
+                "Final Salary",
+                format_lpa(
+                    final_salary
+                ),
             )
 
-            st.markdown(
-                "### 💰 Budget Analysis"
+
+        with col3:
+
+            st.metric(
+                "Salary Increase",
+                format_lpa(
+                    salary_difference
+                ),
             )
 
-            col1, col2, col3 = st.columns(3)
 
-            with col1:
+    # ========================================================
+    # PROJECT BUDGET ANALYTICS
+    # ========================================================
 
-                st.metric(
-                    "Initial Request",
-                    f"₹{initial_budget:,.0f}"
-                )
+    elif (
+        scenario
+        == "Project Budget Allocation"
+        and extracted_values
+    ):
 
-            with col2:
+        initial_budget = (
+            extracted_values[0]
+        )
 
-                st.metric(
-                    "Final Allocation",
-                    f"₹{final_budget:,.0f}"
-                )
+        final_budget = (
+            extracted_values[-1]
+        )
 
-            with col3:
+        budget_difference = (
+            initial_budget
+            - final_budget
+        )
 
-                st.metric(
-                    "Difference",
-                    f"₹{budget_difference:,.0f}"
-                )
 
-    # --------------------------------------------------------
-    # General negotiation statistics
-    # --------------------------------------------------------
+        st.markdown(
+            "### 💰 Budget Analysis"
+        )
+
+
+        col1, col2, col3 = st.columns(
+            3
+        )
+
+
+        with col1:
+
+            st.metric(
+                "Initial Request",
+                f"₹{initial_budget:,.0f}",
+            )
+
+
+        with col2:
+
+            st.metric(
+                "Final Allocation",
+                f"₹{final_budget:,.0f}",
+            )
+
+
+        with col3:
+
+            st.metric(
+                "Difference",
+                f"₹{budget_difference:,.0f}",
+            )
+
+
+    # ========================================================
+    # GENERAL STATS
+    # ========================================================
 
     st.markdown(
         "### 📈 Negotiation Statistics"
     )
 
-    stat1, stat2, stat3 = st.columns(3)
+
+    stat1, stat2, stat3 = st.columns(
+        3
+    )
+
 
     with stat1:
 
         st.metric(
             "Rounds Completed",
-            f"{st.session_state.simulation_round}/{max_rounds}"
+            (
+                f"{st.session_state.simulation_round}"
+                f"/{st.session_state.max_rounds}"
+            ),
         )
+
 
     with stat2:
 
         st.metric(
             "AI Turns",
-            len(negotiation_messages)
+            len(
+                negotiation_messages
+            ),
         )
+
 
     with stat3:
 
         st.metric(
             "Outcome",
-            status
+            status,
         )
+
+
 # ============================================================
-# NEGOTIATION CONVERSATION
+# ZIG-ZAG CONVERSATION
 # ============================================================
 
 st.divider()
@@ -1148,11 +1346,13 @@ st.subheader(
     "💬 Negotiation Conversation"
 )
 
+
 if not st.session_state.simulation_messages:
 
     st.info(
         "Waiting for the AI agents to start negotiating..."
     )
+
 
 else:
 
@@ -1160,64 +1360,130 @@ else:
         st.session_state.simulation_messages
     ):
 
-        speaker = message.get(
-            "speaker",
-            "AI Agent"
+        speaker = normalize_speaker(
+            message.get(
+                "speaker",
+                "AI Agent",
+            )
         )
 
         text = message.get(
             "message",
-            ""
+            "",
         )
 
-        round_number = message.get(
-            "round",
-            None
-        )
+        # ----------------------------------------------------
+        # ROUND
+        # ----------------------------------------------------
 
-        if round_number:
+        negotiation_index = 0
 
-            round_text = (
-                f" • Round {round_number}"
+        for previous_message in (
+            st.session_state.simulation_messages[
+                :index
+            ]
+        ):
+
+            previous_speaker = normalize_speaker(
+                previous_message.get(
+                    "speaker",
+                    "",
+                )
             )
+
+            if previous_speaker in (
+                agent1_name,
+                agent2_name,
+            ):
+
+                negotiation_index += 1
+
+
+        if speaker in (
+            agent1_name,
+            agent2_name,
+        ):
+
+            round_number = (
+                (negotiation_index + 1)
+                // 2
+            )
+
+            if round_number <= 0:
+                round_text = "Opening"
+            else:
+                round_text = (
+                    f"Round {round_number}"
+                )
 
         else:
 
             round_text = ""
 
-        # ==========================================
-        # System message
-        # ==========================================
+
+        # ====================================================
+        # SYSTEM
+        # ====================================================
 
         if speaker == "System":
 
             st.success(
-                f"🤝 **System**{round_text}\n\n{text}"
+                f"🤝 **System**"
+                f"{' • ' + round_text if round_text else ''}"
+                f"\n\n{text}"
             )
 
             continue
 
-        # ==========================================
-        # Determine which side the agent belongs to
-        # ==========================================
+
+        # ====================================================
+        # AGENT 1
+        # ====================================================
 
         is_agent1 = (
             speaker == agent1_name
-            or speaker == agent1_role
         )
 
-        # ==========================================
-        # Create one row for every message
-        # ==========================================
+
+        # ====================================================
+        # AGENT 2
+        # ====================================================
+
+        is_agent2 = (
+            speaker == agent2_name
+        )
+
+
+        # ====================================================
+        # UNKNOWN
+        # ====================================================
+
+        if not is_agent1 and not is_agent2:
+
+            st.warning(
+                f"⚠️ Unknown speaker: {speaker}"
+            )
+
+            st.write(
+                text
+            )
+
+            continue
+
+
+        # ====================================================
+        # ZIG-ZAG ROW
+        # ====================================================
 
         left_col, right_col = st.columns(
             [1, 1],
-            gap="large"
+            gap="large",
         )
 
-        # ==========================================
-        # Agent 1 → LEFT
-        # ==========================================
+
+        # ====================================================
+        # AGENT 1 → LEFT
+        # ====================================================
 
         if is_agent1:
 
@@ -1228,34 +1494,33 @@ else:
                 ):
 
                     st.markdown(
-                        f"### 🤖 {speaker}"
+                        f"### 🟣 {speaker}"
                     )
 
-                    if round_text:
+                    st.caption(
+                        round_text
+                    )
 
-                        st.caption(
-                            round_text.strip(" •")
-                        )
+                    st.write(
+                        text
+                    )
 
-                    st.write(text)
-
-            # Empty right side
 
             with right_col:
 
                 st.empty()
 
-        # ==========================================
-        # Agent 2 → RIGHT
-        # ==========================================
 
-        else:
+        # ====================================================
+        # AGENT 2 → RIGHT
+        # ====================================================
 
-            # Empty left side
+        elif is_agent2:
 
             with left_col:
 
                 st.empty()
+
 
             with right_col:
 
@@ -1264,26 +1529,23 @@ else:
                 ):
 
                     st.markdown(
-                        f"### 🤖 {speaker}"
+                        f"### 🟠 {speaker}"
                     )
 
-                    if round_text:
+                    st.caption(
+                        round_text
+                    )
 
-                        st.caption(
-                            round_text.strip(" •")
-                        )
-
-                    st.write(text)
+                    st.write(
+                        text
+                    )
 
 
 # ============================================================
 # AUTOMATIC REFRESH
 # ============================================================
 
-if (
-    session_id
-    and not st.session_state.simulation_finished
-):
+if not st.session_state.simulation_finished:
 
     time.sleep(1)
 
@@ -1296,13 +1558,20 @@ if (
 
 st.divider()
 
-back_col, restart_col = st.columns(2)
+back_col, restart_col = st.columns(
+    2
+)
+
+
+# ============================================================
+# HOME
+# ============================================================
 
 with back_col:
 
     if st.button(
         "🏠 Back to Home",
-        use_container_width=True
+        use_container_width=True,
     ):
 
         st.session_state.simulation_finished = True
@@ -1312,19 +1581,35 @@ with back_col:
         )
 
 
+# ============================================================
+# RESTART
+# ============================================================
+
 with restart_col:
 
     if st.button(
         "🔄 Restart Simulation",
-        use_container_width=True
+        use_container_width=True,
     ):
 
         st.session_state.simulation_messages = []
+
         st.session_state.simulation_started = False
+
         st.session_state.simulation_finished = False
+
         st.session_state.simulation_round = 0
-        st.session_state.simulation_status = "Waiting"
+
+        st.session_state.simulation_status = (
+            "Waiting"
+        )
+
         st.session_state.active_agent = None
+
         st.session_state.waiting_for_response = False
+
+        st.session_state.backend_agent1 = None
+
+        st.session_state.backend_agent2 = None
 
         st.rerun()
