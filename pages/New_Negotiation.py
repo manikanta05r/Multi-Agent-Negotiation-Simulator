@@ -160,6 +160,19 @@ SCENARIO_DEFAULTS = {
 
 
 # ============================================================
+# STRATEGIES
+# ============================================================
+
+STRATEGIES = [
+    "Collaborative",
+    "Assertive",
+    "Competitive",
+    "Compromising",
+    "Flexible",
+]
+
+
+# ============================================================
 # HEADER
 # ============================================================
 
@@ -195,15 +208,13 @@ scenario = st.selectbox(
     key="scenario_selector",
 )
 
-# ============================================================
-# SCENARIO CHANGE
-# ============================================================
 
-# Always resolve the currently selected scenario.
-# These must be available on every Streamlit rerun,
-# not only when the scenario changes.
+# ============================================================
+# SCENARIO DATA
+# ============================================================
 
 scenario_agents = SCENARIO_AGENTS[scenario]
+
 scenario_defaults = SCENARIO_DEFAULTS[scenario]
 
 
@@ -233,14 +244,12 @@ if st.session_state.get("scenario") != scenario:
         scenario_agents["agent2_role"]
     )
 
-
     # --------------------------------------------------------
     # RESET AGENT CONFIG
     # --------------------------------------------------------
 
     st.session_state.agent1_config = {}
     st.session_state.agent2_config = {}
-
 
     # --------------------------------------------------------
     # RESET STRATEGIES
@@ -249,14 +258,12 @@ if st.session_state.get("scenario") != scenario:
     st.session_state.agent1_strategy = "Collaborative"
     st.session_state.agent2_strategy = "Assertive"
 
-
     # --------------------------------------------------------
     # RESET INSTRUCTIONS
     # --------------------------------------------------------
 
     st.session_state.agent1_instructions = ""
     st.session_state.agent2_instructions = ""
-
 
     # --------------------------------------------------------
     # RESET TARGET VALUES
@@ -278,7 +285,6 @@ if st.session_state.get("scenario") != scenario:
         scenario_defaults["agent2_reservation"]
     )
 
-
     # --------------------------------------------------------
     # SAVE SCENARIO
     # --------------------------------------------------------
@@ -286,6 +292,7 @@ if st.session_state.get("scenario") != scenario:
     st.session_state.scenario = scenario
 
     st.rerun()
+
 
 # ============================================================
 # PROJECT BUDGET
@@ -313,7 +320,10 @@ else:
 if scenario == "Vendor Pricing Negotiation":
 
     field1_label = "Starting Target"
-    field2_label = "Reservation Price / Walk Away"
+
+    field2_label = (
+        "Reservation Price / Walk Away"
+    )
 
     field1_help = (
         "Initial price/value the agent wants to negotiate from."
@@ -327,7 +337,10 @@ if scenario == "Vendor Pricing Negotiation":
 elif scenario == "Job Offer Negotiation":
 
     field1_label = "Starting Salary (₹)"
-    field2_label = "Reservation Salary / Walk Away (₹)"
+
+    field2_label = (
+        "Reservation Salary / Walk Away (₹)"
+    )
 
     field1_help = (
         "Initial salary position used to start the negotiation."
@@ -340,12 +353,13 @@ elif scenario == "Job Offer Negotiation":
 
 else:
 
-    # --------------------------------------------------------
-    # PROJECT BUDGET
-    # --------------------------------------------------------
+    field1_label = (
+        "Starting Budget Position (₹)"
+    )
 
-    field1_label = "Starting Budget Position (₹)"
-    field2_label = "Minimum Acceptable Budget / Walk-Away (₹)"
+    field2_label = (
+        "Minimum Acceptable Budget / Walk-Away (₹)"
+    )
 
     field1_help = (
         "The amount this agent must use as its opening "
@@ -396,7 +410,9 @@ with mode_col1:
 
     with st.container(border=True):
 
-        st.markdown("### 🤖 Simulation Mode")
+        st.markdown(
+            "### 🤖 Simulation Mode"
+        )
 
         st.write(
             "Two autonomous AI agents negotiate with each other."
@@ -418,6 +434,7 @@ with mode_col1:
         ):
 
             st.session_state.mode = "Simulation"
+
             st.session_state.role = None
 
             st.rerun()
@@ -431,7 +448,9 @@ with mode_col2:
 
     with st.container(border=True):
 
-        st.markdown("### 🎮 Practice Mode")
+        st.markdown(
+            "### 🎮 Practice Mode"
+        )
 
         st.write(
             "Practice negotiation with an AI opponent."
@@ -482,7 +501,9 @@ if st.session_state.mode == "Practice":
 
     st.divider()
 
-    st.subheader("👤 Choose Your Role")
+    st.subheader(
+        "👤 Choose Your Role"
+    )
 
     if scenario == "Vendor Pricing Negotiation":
 
@@ -505,7 +526,6 @@ if st.session_state.mode == "Practice":
             "Budget Allocator",
         ]
 
-
     role = st.radio(
         "Your Role",
         roles,
@@ -515,12 +535,10 @@ if st.session_state.mode == "Practice":
 
     st.session_state.role = role
 
-
     config_col1, config_col2 = st.columns(
         2,
         gap="large",
     )
-
 
     # ========================================================
     # HUMAN
@@ -534,24 +552,27 @@ if st.session_state.mode == "Practice":
 
         with st.container(border=True):
 
-            st.markdown(f"### 👤 {role}")
+            st.markdown(
+                f"### 👤 {role}"
+            )
 
-            st.write(f"**Role:** {role}")
+            st.write(
+                f"**Role:** {role}"
+            )
 
             human_strategy = st.selectbox(
                 "Negotiation Strategy",
-                [
-                    "Collaborative",
-                    "Competitive",
-                    "Assertive",
-                    "Compromising",
-                    "Flexible",
-                ],
-                key=f"practice_human_strategy_{scenario}_{role}",
+                STRATEGIES,
+                key=(
+                    f"practice_human_strategy_"
+                    f"{scenario}_{role}"
+                ),
             )
 
-
-            if role == scenario_agents["agent1_role"]:
+            if (
+                role
+                == scenario_agents["agent1_role"]
+            ):
 
                 default_human_starting = (
                     scenario_defaults["agent1_starting"]
@@ -571,34 +592,47 @@ if st.session_state.mode == "Practice":
                     scenario_defaults["agent2_reservation"]
                 )
 
-
             human_starting_target = st.number_input(
                 field1_label,
                 min_value=0.0,
                 step=1000.0,
-                value=float(default_human_starting),
-                key=f"practice_human_starting_{scenario}_{role}",
+                value=float(
+                    default_human_starting
+                ),
+                key=(
+                    f"practice_human_starting_"
+                    f"{scenario}_{role}"
+                ),
             )
 
             human_reservation_price = st.number_input(
                 field2_label,
                 min_value=0.0,
                 step=1000.0,
-                value=float(default_human_reservation),
-                key=f"practice_human_reservation_{scenario}_{role}",
+                value=float(
+                    default_human_reservation
+                ),
+                key=(
+                    f"practice_human_reservation_"
+                    f"{scenario}_{role}"
+                ),
             )
 
             st.caption(
                 f"Amount: {format_inr(human_starting_target)}"
             )
 
-            st.caption(field1_help)
+            st.caption(
+                field1_help
+            )
 
             st.caption(
                 f"Amount: {format_inr(human_reservation_price)}"
             )
 
-            st.caption(field2_help)
+            st.caption(
+                field2_help
+            )
 
             human_instructions = st.text_area(
                 "Custom Instructions",
@@ -606,18 +640,28 @@ if st.session_state.mode == "Practice":
                     "Optional instructions for your negotiation..."
                 ),
                 height=120,
-                key=f"practice_human_instructions_{scenario}_{role}",
+                key=(
+                    f"practice_human_instructions_"
+                    f"{scenario}_{role}"
+                ),
             )
-
 
     # ========================================================
     # AI ROLE
     # ========================================================
 
-    if role == scenario_agents["agent1_role"]:
+    if (
+        role
+        == scenario_agents["agent1_role"]
+    ):
 
-        ai_agent_name = scenario_agents["agent2_name"]
-        ai_agent_role = scenario_agents["agent2_role"]
+        ai_agent_name = (
+            scenario_agents["agent2_name"]
+        )
+
+        ai_agent_role = (
+            scenario_agents["agent2_role"]
+        )
 
         ai_default_starting = (
             scenario_defaults["agent2_starting"]
@@ -629,8 +673,13 @@ if st.session_state.mode == "Practice":
 
     else:
 
-        ai_agent_name = scenario_agents["agent1_name"]
-        ai_agent_role = scenario_agents["agent1_role"]
+        ai_agent_name = (
+            scenario_agents["agent1_name"]
+        )
+
+        ai_agent_role = (
+            scenario_agents["agent1_role"]
+        )
 
         ai_default_starting = (
             scenario_defaults["agent1_starting"]
@@ -639,7 +688,6 @@ if st.session_state.mode == "Practice":
         ai_default_reservation = (
             scenario_defaults["agent1_reservation"]
         )
-
 
     # ========================================================
     # AI
@@ -663,43 +711,54 @@ if st.session_state.mode == "Practice":
 
             ai_strategy = st.selectbox(
                 "Negotiation Strategy",
-                [
-                    "Collaborative",
-                    "Competitive",
-                    "Assertive",
-                    "Compromising",
-                    "Flexible",
-                ],
-                key=f"practice_ai_strategy_{scenario}_{ai_agent_role}",
+                STRATEGIES,
+                key=(
+                    f"practice_ai_strategy_"
+                    f"{scenario}_{ai_agent_role}"
+                ),
             )
 
             ai_starting_target = st.number_input(
                 field1_label,
                 min_value=0.0,
                 step=1000.0,
-                value=float(ai_default_starting),
-                key=f"practice_ai_starting_{scenario}_{ai_agent_role}",
+                value=float(
+                    ai_default_starting
+                ),
+                key=(
+                    f"practice_ai_starting_"
+                    f"{scenario}_{ai_agent_role}"
+                ),
             )
 
             ai_reservation_price = st.number_input(
                 field2_label,
                 min_value=0.0,
                 step=1000.0,
-                value=float(ai_default_reservation),
-                key=f"practice_ai_reservation_{scenario}_{ai_agent_role}",
+                value=float(
+                    ai_default_reservation
+                ),
+                key=(
+                    f"practice_ai_reservation_"
+                    f"{scenario}_{ai_agent_role}"
+                ),
             )
 
             st.caption(
                 f"Amount: {format_inr(ai_starting_target)}"
             )
 
-            st.caption(field1_help)
+            st.caption(
+                field1_help
+            )
 
             st.caption(
                 f"Amount: {format_inr(ai_reservation_price)}"
             )
 
-            st.caption(field2_help)
+            st.caption(
+                field2_help
+            )
 
             ai_instructions = st.text_area(
                 "Custom Instructions",
@@ -707,19 +766,22 @@ if st.session_state.mode == "Practice":
                     "Optional instructions for the AI agent..."
                 ),
                 height=120,
-                key=f"practice_ai_instructions_{scenario}_{ai_agent_role}",
+                key=(
+                    f"practice_ai_instructions_"
+                    f"{scenario}_{ai_agent_role}"
+                ),
             )
 
-
     # ========================================================
-    # BUILD CONFIG
+    # BUILD PRACTICE CONFIG
     # ========================================================
 
     human_config = {
 
         "name": (
             scenario_agents["agent1_name"]
-            if role == scenario_agents["agent1_role"]
+            if role
+            == scenario_agents["agent1_role"]
             else scenario_agents["agent2_name"]
         ),
 
@@ -739,7 +801,6 @@ if st.session_state.mode == "Practice":
 
         "instructions": human_instructions,
     }
-
 
     ai_config = {
 
@@ -762,16 +823,28 @@ if st.session_state.mode == "Practice":
         "instructions": ai_instructions,
     }
 
+    if (
+        role
+        == scenario_agents["agent1_role"]
+    ):
 
-    if role == scenario_agents["agent1_role"]:
+        st.session_state.agent1_config = (
+            human_config
+        )
 
-        st.session_state.agent1_config = human_config
-        st.session_state.agent2_config = ai_config
+        st.session_state.agent2_config = (
+            ai_config
+        )
 
     else:
 
-        st.session_state.agent1_config = ai_config
-        st.session_state.agent2_config = human_config
+        st.session_state.agent1_config = (
+            ai_config
+        )
+
+        st.session_state.agent2_config = (
+            human_config
+        )
 
 
 # ============================================================
@@ -782,7 +855,9 @@ if st.session_state.mode == "Simulation":
 
     st.divider()
 
-    st.subheader("🤖 Configure AI Agents")
+    st.subheader(
+        "🤖 Configure AI Agents"
+    )
 
     st.caption(
         "Configure both autonomous participants."
@@ -793,7 +868,6 @@ if st.session_state.mode == "Simulation":
         gap="large",
     )
 
-
     # ========================================================
     # AGENT 1
     # ========================================================
@@ -802,7 +876,9 @@ if st.session_state.mode == "Simulation":
 
         with st.container(border=True):
 
-            st.markdown("### 🟣 Agent 1")
+            st.markdown(
+                "### 🟣 Agent 1"
+            )
 
             st.caption(
                 "First negotiation participant"
@@ -812,32 +888,32 @@ if st.session_state.mode == "Simulation":
 
             agent1_name = st.text_input(
                 "Agent Name",
-                value=scenario_agents["agent1_name"],
+                value=scenario_agents[
+                    "agent1_name"
+                ],
                 key="agent1_name",
             )
 
             agent1_role = st.text_input(
                 "Role",
-                value=scenario_agents["agent1_role"],
+                value=scenario_agents[
+                    "agent1_role"
+                ],
                 key="agent1_role",
             )
 
             agent1_strategy = st.selectbox(
                 "Negotiation Strategy",
-                [
-                    "Collaborative",
-                    "Assertive",
-                    "Competitive",
-                    "Accommodating",
-                    "Compromising",
-                ],
+                STRATEGIES,
                 key="agent1_strategy",
             )
 
             agent1_field1 = st.number_input(
                 field1_label,
                 min_value=0.0,
-                value=float(agent1_field1_default),
+                value=float(
+                    agent1_field1_default
+                ),
                 step=1000.0,
                 key=f"agent1_field1_{scenario}",
             )
@@ -846,12 +922,16 @@ if st.session_state.mode == "Simulation":
                 f"Amount: {format_inr(agent1_field1)}"
             )
 
-            st.caption(field1_help)
+            st.caption(
+                field1_help
+            )
 
             agent1_field2 = st.number_input(
                 field2_label,
                 min_value=0.0,
-                value=float(agent1_field2_default),
+                value=float(
+                    agent1_field2_default
+                ),
                 step=1000.0,
                 key=f"agent1_field2_{scenario}",
             )
@@ -860,15 +940,18 @@ if st.session_state.mode == "Simulation":
                 f"Amount: {format_inr(agent1_field2)}"
             )
 
-            st.caption(field2_help)
+            st.caption(
+                field2_help
+            )
 
             agent1_instructions = st.text_area(
                 "Custom Instructions",
-                placeholder="Optional instructions for Agent 1...",
+                placeholder=(
+                    "Optional instructions for Agent 1..."
+                ),
                 height=100,
                 key="agent1_instructions",
             )
-
 
     # ========================================================
     # AGENT 2
@@ -878,7 +961,9 @@ if st.session_state.mode == "Simulation":
 
         with st.container(border=True):
 
-            st.markdown("### 🟠 Agent 2")
+            st.markdown(
+                "### 🟠 Agent 2"
+            )
 
             st.caption(
                 "Second negotiation participant"
@@ -888,25 +973,23 @@ if st.session_state.mode == "Simulation":
 
             agent2_name = st.text_input(
                 "Agent Name",
-                value=scenario_agents["agent2_name"],
+                value=scenario_agents[
+                    "agent2_name"
+                ],
                 key="agent2_name",
             )
 
             agent2_role = st.text_input(
                 "Role",
-                value=scenario_agents["agent2_role"],
+                value=scenario_agents[
+                    "agent2_role"
+                ],
                 key="agent2_role",
             )
 
             agent2_strategy = st.selectbox(
                 "Negotiation Strategy",
-                [
-                    "Collaborative",
-                    "Assertive",
-                    "Competitive",
-                    "Accommodating",
-                    "Compromising",
-                ],
+                STRATEGIES,
                 index=1,
                 key="agent2_strategy",
             )
@@ -914,7 +997,9 @@ if st.session_state.mode == "Simulation":
             agent2_field1 = st.number_input(
                 field1_label,
                 min_value=0.0,
-                value=float(agent2_field1_default),
+                value=float(
+                    agent2_field1_default
+                ),
                 step=1000.0,
                 key=f"agent2_field1_{scenario}",
             )
@@ -923,12 +1008,16 @@ if st.session_state.mode == "Simulation":
                 f"Amount: {format_inr(agent2_field1)}"
             )
 
-            st.caption(field1_help)
+            st.caption(
+                field1_help
+            )
 
             agent2_field2 = st.number_input(
                 field2_label,
                 min_value=0.0,
-                value=float(agent2_field2_default),
+                value=float(
+                    agent2_field2_default
+                ),
                 step=1000.0,
                 key=f"agent2_field2_{scenario}",
             )
@@ -937,11 +1026,15 @@ if st.session_state.mode == "Simulation":
                 f"Amount: {format_inr(agent2_field2)}"
             )
 
-            st.caption(field2_help)
+            st.caption(
+                field2_help
+            )
 
             agent2_instructions = st.text_area(
                 "Custom Instructions",
-                placeholder="Optional instructions for Agent 2...",
+                placeholder=(
+                    "Optional instructions for Agent 2..."
+                ),
                 height=100,
                 key="agent2_instructions",
             )
@@ -953,7 +1046,9 @@ if st.session_state.mode == "Simulation":
 
 st.divider()
 
-st.subheader("⚙️ Step 3 — Configuration")
+st.subheader(
+    "⚙️ Step 3 — Configuration"
+)
 
 config_left, config_right = st.columns(
     2,
@@ -999,37 +1094,72 @@ with config_right:
 
 st.divider()
 
-st.subheader("📄 Negotiation Summary")
+st.subheader(
+    "📄 Negotiation Summary"
+)
 
-summary1, summary2, summary3, summary4 = st.columns(4)
+summary1, summary2, summary3, summary4 = st.columns(
+    4
+)
 
 with summary1:
-    st.caption("Scenario")
-    st.write(scenario)
+
+    st.caption(
+        "Scenario"
+    )
+
+    st.write(
+        scenario
+    )
+
 
 with summary2:
-    st.caption("Mode")
+
+    st.caption(
+        "Mode"
+    )
+
     st.write(
         st.session_state.mode
         if st.session_state.mode
         else "Not Selected"
     )
 
+
 with summary3:
-    st.caption("Maximum Rounds")
-    st.write(max_rounds)
+
+    st.caption(
+        "Maximum Rounds"
+    )
+
+    st.write(
+        max_rounds
+    )
+
 
 with summary4:
-    st.caption("Participants")
+
+    st.caption(
+        "Participants"
+    )
 
     if st.session_state.mode == "Simulation":
-        st.write("AI Agents")
+
+        st.write(
+            "AI Agents"
+        )
 
     elif st.session_state.mode == "Practice":
-        st.write("Human + AI")
+
+        st.write(
+            "Human + AI"
+        )
 
     else:
-        st.write("Not Selected")
+
+        st.write(
+            "Not Selected"
+        )
 
 
 # ============================================================
@@ -1141,12 +1271,15 @@ if st.button(
 
 
     # ========================================================
-    # SAVE AI CONFIGURATION
+    # BUILD / VALIDATE AI CONFIGURATION
     # ========================================================
 
     if st.session_state.mode == "Simulation":
 
-        if agent1_field1 <= 0 or agent1_field2 <= 0:
+        if (
+            agent1_field1 <= 0
+            or agent1_field2 <= 0
+        ):
 
             st.error(
                 "Agent 1 values must be greater than 0."
@@ -1155,7 +1288,10 @@ if st.button(
             st.stop()
 
 
-        if agent2_field1 <= 0 or agent2_field2 <= 0:
+        if (
+            agent2_field1 <= 0
+            or agent2_field2 <= 0
+        ):
 
             st.error(
                 "Agent 2 values must be greater than 0."
@@ -1215,61 +1351,42 @@ if st.button(
 
                 st.stop()
 
-        # --------------------------------------------------------
+
+        # ----------------------------------------------------
         # PROJECT BUDGET
-        # --------------------------------------------------------
+        # ----------------------------------------------------
 
         elif scenario == "Project Budget Allocation":
 
-            # ====================================================
-            # BUDGET REQUESTER
-            # ====================================================
-
-            # Requester starts HIGH and gradually concedes DOWN.
-            #
-            # Example:
-            # Starting Target = ₹30L
-            # Walk-Away = ₹24L
-            #
-            # Therefore:
-            # Starting Target >= Walk-Away
+            # Requester starts high and moves downward.
 
             if agent1_field1 < agent1_field2:
 
                 st.error(
-                    "Budget Requester: Starting Budget Position must "
-                    "be greater than or equal to the Walk-Away Budget."
+                    "Budget Requester: Starting Budget Position "
+                    "must be greater than or equal to the "
+                    "Walk-Away Budget."
                 )
 
                 st.stop()
 
 
-            # ====================================================
-            # BUDGET ALLOCATOR
-            # ====================================================
-
-            # Allocator starts LOW and gradually concedes UP.
-            #
-            # Example:
-            # Starting Target = ₹22L
-            # Walk-Away = ₹24L
-            #
-            # Therefore:
-            # Starting Target <= Walk-Away
+            # Allocator starts low and moves upward.
 
             if agent2_field1 > agent2_field2:
 
                 st.error(
-                    "Budget Allocator: Starting Budget Position must "
-                    "be less than or equal to the Walk-Away Budget."
+                    "Budget Allocator: Starting Budget Position "
+                    "must be less than or equal to the "
+                    "Walk-Away Budget."
                 )
 
                 st.stop()
 
 
-            # ====================================================
+            # ------------------------------------------------
             # TOTAL PROJECT BUDGET
-            # ====================================================
+            # ------------------------------------------------
 
             if project_budget is not None:
 
@@ -1312,8 +1429,9 @@ if st.button(
 
                     st.stop()
 
+
         # ====================================================
-        # STORE AGENT 1
+        # STORE AGENT 1 CONFIG
         # ====================================================
 
         st.session_state.agent1_config = {
@@ -1339,7 +1457,7 @@ if st.button(
 
 
         # ====================================================
-        # STORE AGENT 2
+        # STORE AGENT 2 CONFIG
         # ====================================================
 
         st.session_state.agent2_config = {
@@ -1404,7 +1522,9 @@ if st.button(
         and project_budget is not None
     ):
 
-        payload["total_project_budget"] = float(
+        # IMPORTANT:
+        # This name must match NegotiationRequest.
+        payload["project_total_budget"] = float(
             project_budget
         )
 
@@ -1415,11 +1535,17 @@ if st.button(
 
     if st.session_state.mode == "Simulation":
 
-        payload["agent1"] = (
+        # IMPORTANT:
+        # These names must exactly match:
+        #
+        # NegotiationRequest.agent1_config
+        # NegotiationRequest.agent2_config
+        #
+        payload["agent1_config"] = (
             st.session_state.agent1_config
         )
 
-        payload["agent2"] = (
+        payload["agent2_config"] = (
             st.session_state.agent2_config
         )
 
@@ -1432,6 +1558,16 @@ if st.button(
 
         payload["role"] = (
             st.session_state.role
+        )
+
+        # Keep the already-built configurations available
+        # for future practice-mode persistence.
+        payload["agent1_config"] = (
+            st.session_state.agent1_config
+        )
+
+        payload["agent2_config"] = (
+            st.session_state.agent2_config
         )
 
 

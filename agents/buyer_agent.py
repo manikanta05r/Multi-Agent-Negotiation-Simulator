@@ -3,6 +3,32 @@ from llm.prompt_builder import build_prompt
 from llm.response_parser import parse_response
 
 
+def get_config_value(
+    config,
+    key,
+    default=None
+):
+    """
+    Read a configuration value from either a dictionary
+    or an object/Pydantic model.
+    """
+
+    if config is None:
+        return default
+
+    if isinstance(config, dict):
+        return config.get(
+            key,
+            default
+        )
+
+    return getattr(
+        config,
+        key,
+        default
+    )
+
+
 class BuyerAgent:
 
     def __init__(self):
@@ -16,14 +42,18 @@ class BuyerAgent:
 
         self.constraints = (
             "Stay within the available budget. "
+            "Never accept a price above your configured maximum "
+            "acceptable price. "
+            "If the supplier's offer exceeds your reservation price, "
+            "continue negotiating. "
             "Negotiate politely for a better price. "
             "Make reasonable counteroffers based on the supplier's "
             "latest offer. "
             "Do not make the same counteroffer repeatedly. "
             "Do not immediately accept unless the offer is fair "
             "and within the acceptable range. "
-            "If the supplier reaches a reasonable final price, "
-            "accept the offer explicitly. "
+            "If the supplier reaches a reasonable final price within "
+            "your acceptable range, accept the offer explicitly. "
             "Do not introduce unrelated topics."
         )
 
@@ -38,34 +68,32 @@ class BuyerAgent:
 
         if agent_config:
 
-            strategy = getattr(
+            strategy = get_config_value(
                 agent_config,
-                "strategy",
-                None
+                "strategy"
             )
 
-            starting_target = getattr(
+            starting_target = get_config_value(
                 agent_config,
-                "starting_target",
-                None
+                "starting_target"
             )
 
-            reservation_price = getattr(
+            reservation_price = get_config_value(
                 agent_config,
-                "reservation_price",
-                None
+                "reservation_price"
             )
 
-            instructions = getattr(
+            instructions = get_config_value(
                 agent_config,
-                "instructions",
-                None
+                "instructions"
             )
 
             dynamic_constraints += (
                 f" Negotiation strategy: {strategy}. "
                 f"Starting target price: {starting_target}. "
                 f"Maximum acceptable price: {reservation_price}. "
+                f"Never accept a price above "
+                f"{reservation_price}. "
                 f"Custom instructions: {instructions}."
             )
 
@@ -78,6 +106,10 @@ class BuyerAgent:
             agent_config=agent_config
         )
 
-        response = generate_response(prompt)
+        response = generate_response(
+            prompt
+        )
 
-        return parse_response(response)
+        return parse_response(
+            response
+        )

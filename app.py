@@ -170,6 +170,6 @@ st.write(
 
     • Gemini LLM
 
-    • MongoDB Database
+    • Supabase Database
     """
 )

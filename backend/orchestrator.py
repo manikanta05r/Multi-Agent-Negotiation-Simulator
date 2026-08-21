@@ -1,3 +1,5 @@
+import re
+
 from schemas.negotiation import NegotiationRequest
 
 from backend.session_manager import SessionManager
@@ -50,8 +52,8 @@ class NegotiationOrchestrator:
         self.hr_agent = HRAgent()
         self.budget_agent = BudgetAgent()
 
-        # Implementation class remains DepartmentRepresentativeAgent,
-        # but user-facing role is Budget Requester.
+        # Implementation class remains unchanged.
+        # User-facing role is Budget Requester.
         self.department_agent = (
             DepartmentRepresentativeAgent()
         )
@@ -94,10 +96,45 @@ class NegotiationOrchestrator:
         }
 
     # ============================================================
+    # CONFIGURATION VALUE HELPER
+    # ============================================================
+
+    def _get_config_value(
+        self,
+        config,
+        key,
+        default=None
+    ):
+        """
+        Read configuration values from either:
+
+        - dictionary-based configs
+        - Pydantic/object-based configs
+        """
+
+        if config is None:
+            return default
+
+        if isinstance(config, dict):
+            return config.get(
+                key,
+                default
+            )
+
+        return getattr(
+            config,
+            key,
+            default
+        )
+
+    # ============================================================
     # SPEAKER HELPERS
     # ============================================================
 
-    def _get_speaker_names(self, scenario):
+    def _get_speaker_names(
+        self,
+        scenario
+    ):
 
         if scenario == "Vendor Pricing Negotiation":
             return [
@@ -200,8 +237,7 @@ class NegotiationOrchestrator:
             if last_speaker == "Buyer":
                 return "Supplier"
 
-            # No previous message.
-            # Supplier opens the negotiation.
+            # Supplier opens.
             return "Supplier"
 
         # ========================================================
@@ -216,8 +252,7 @@ class NegotiationOrchestrator:
             if last_speaker == "Candidate":
                 return "HR Manager"
 
-            # No previous message.
-            # HR opens the negotiation.
+            # HR opens.
             return "HR Manager"
 
         # ========================================================
@@ -232,8 +267,7 @@ class NegotiationOrchestrator:
             if last_speaker == "Budget Allocator":
                 return "Budget Requester"
 
-            # No previous message.
-            # Budget Requester opens the negotiation.
+            # Budget Requester opens.
             return "Budget Requester"
 
         return None
@@ -266,15 +300,17 @@ class NegotiationOrchestrator:
         if scenario == "Vendor Pricing Negotiation":
 
             supplier_price = (
-                agent2_config.starting_target
-                if agent2_config
-                else 105000
+                self._get_config_value(
+                    agent2_config,
+                    "starting_target",
+                    105000
+                )
             )
 
             opening_message = (
                 f"We are pleased to open discussions with "
                 f"an offer of 100 units at "
-                f"₹{supplier_price:,.0f} per unit. "
+                f"₹{float(supplier_price):,.0f} per unit. "
                 f"We are open to discussing the commercial "
                 f"terms to find a workable arrangement."
             )
@@ -294,13 +330,15 @@ class NegotiationOrchestrator:
         if scenario == "Job Offer Negotiation":
 
             hr_salary = (
-                agent2_config.starting_target
-                if agent2_config
-                else 1000000
+                self._get_config_value(
+                    agent2_config,
+                    "starting_target",
+                    1000000
+                )
             )
 
             hr_salary_lpa = (
-                hr_salary / 100000
+                float(hr_salary) / 100000
             )
 
             opening_message = (
@@ -326,15 +364,17 @@ class NegotiationOrchestrator:
         if scenario == "Project Budget Allocation":
 
             requester_budget = (
-                agent1_config.starting_target
-                if agent1_config
-                else 3000000
+                self._get_config_value(
+                    agent1_config,
+                    "starting_target",
+                    3000000
+                )
             )
 
             opening_message = (
                 f"We would like to begin the discussion with "
                 f"an initial budget request of "
-                f"₹{requester_budget:,.0f}. "
+                f"₹{float(requester_budget):,.0f}. "
                 f"This reflects the resources we believe are "
                 f"needed to meet the project's key priorities. "
                 f"We are open to discussing the allocation "
@@ -350,7 +390,433 @@ class NegotiationOrchestrator:
             return
 
     # ============================================================
-    # EXPLICIT ACCEPTANCE
+    # MONEY EXTRACTION
+    # ============================================================
+
+    def _extract_last_money_value(
+        self,
+        message
+    ):
+        """
+        Extract the final monetary value mentioned.
+
+        Supports:
+            ₹95,000
+            ₹1,00,000
+            ₹12 LPA
+            ₹12 lakh
+            95000 INR
+            95000 rupees
+        """
+
+        if not message:
+            return None
+
+        text = str(message)
+
+        patterns = [
+
+            r"₹\s*([\d,]+(?:\.\d+)?)"
+            r"\s*(LPA|lakhs?|lakh)?",
+
+            r"([\d,]+(?:\.\d+)?)"
+            r"\s*(LPA|lakhs?|lakh)\b",
+
+            r"([\d,]+(?:\.\d+)?)"
+            r"\s*(?:rupees|INR)\b",
+        ]
+
+        values = []
+
+        for pattern in patterns:
+
+            matches = re.findall(
+                pattern,
+                text,
+                flags=re.IGNORECASE
+            )
+
+            for match in matches:
+
+                if isinstance(match, tuple):
+
+                    raw_value = match[0]
+
+                    unit = (
+                        match[1]
+                        if len(match) > 1
+                        else ""
+                    )
+
+                else:
+
+                    raw_value = match
+                    unit = ""
+
+                try:
+
+                    value = float(
+                        raw_value.replace(
+                            ",",
+                            ""
+                        )
+                    )
+
+                except (
+                    TypeError,
+                    ValueError
+                ):
+
+                    continue
+
+                unit = (
+                    unit or ""
+                ).lower()
+
+                if unit == "lpa":
+
+                    value *= 100000
+
+                elif unit in {
+                    "lakh",
+                    "lakhs"
+                }:
+
+                    value *= 100000
+
+                values.append(
+                    value
+                )
+
+        if not values:
+            return None
+
+        return values[-1]
+
+    # ============================================================
+    # LAST OFFER FROM OPPOSITE PARTY
+    # ============================================================
+
+    def _get_last_offer_from_speaker(
+        self,
+        conversation,
+        speaker
+    ):
+        """
+        Get the latest monetary value mentioned by a specific speaker.
+        """
+
+        for message in reversed(
+            conversation
+        ):
+
+            if message.get(
+                "speaker"
+            ) != speaker:
+
+                continue
+
+            value = (
+                self._extract_last_money_value(
+                    message.get(
+                        "message",
+                        ""
+                    )
+                )
+            )
+
+            if value is not None:
+                return value
+
+        return None
+
+    # ============================================================
+    # AGREEMENT BOUNDARIES
+    # ============================================================
+
+    def _get_agreement_boundaries(
+        self,
+        session
+    ):
+        """
+        Determine the valid agreement zone.
+
+        Minimum-side roles:
+            Supplier
+            Candidate
+            Budget Requester
+
+        Maximum-side roles:
+            Buyer
+            HR Manager
+            Budget Allocator
+        """
+
+        agent1_config = session.get(
+            "agent1_config"
+        )
+
+        agent2_config = session.get(
+            "agent2_config"
+        )
+
+        configs = [
+            agent1_config,
+            agent2_config
+        ]
+
+        minimum_roles = {
+            "Supplier",
+            "Candidate",
+            "Budget Requester"
+        }
+
+        maximum_roles = {
+            "Buyer",
+            "HR Manager",
+            "Budget Allocator"
+        }
+
+        lower_bound = None
+        upper_bound = None
+
+        for config in configs:
+
+            if config is None:
+                continue
+
+            role = self._get_config_value(
+                config,
+                "role",
+                ""
+            )
+
+            reservation_price = (
+                self._get_config_value(
+                    config,
+                    "reservation_price",
+                    None
+                )
+            )
+
+            if reservation_price is None:
+                continue
+
+            reservation_price = float(
+                reservation_price
+            )
+
+            if role in minimum_roles:
+
+                if (
+                    lower_bound is None
+                    or reservation_price > lower_bound
+                ):
+
+                    lower_bound = (
+                        reservation_price
+                    )
+
+            elif role in maximum_roles:
+
+                if (
+                    upper_bound is None
+                    or reservation_price < upper_bound
+                ):
+
+                    upper_bound = (
+                        reservation_price
+                    )
+
+        return {
+            "lower_bound": lower_bound,
+            "upper_bound": upper_bound
+        }
+
+    # ============================================================
+    # VALIDATE AGREEMENT VALUE
+    # ============================================================
+
+    def _is_valid_agreement_value(
+        self,
+        session,
+        value
+    ):
+        """
+        An agreement is valid only when it satisfies BOTH sides'
+        configured walk-away boundaries.
+        """
+
+        if value is None:
+            return False
+
+        boundaries = (
+            self._get_agreement_boundaries(
+                session
+            )
+        )
+
+        lower_bound = (
+            boundaries.get(
+                "lower_bound"
+            )
+        )
+
+        upper_bound = (
+            boundaries.get(
+                "upper_bound"
+            )
+        )
+
+        # No lower boundary configured.
+        if (
+            lower_bound is not None
+            and value < lower_bound
+        ):
+            return False
+
+        # No upper boundary configured.
+        if (
+            upper_bound is not None
+            and value > upper_bound
+        ):
+            return False
+
+        return True
+
+    # ============================================================
+    # OPPOSITE SPEAKER
+    # ============================================================
+
+    def _get_opposite_speaker(
+        self,
+        scenario,
+        speaker
+    ):
+
+        pairs = {
+
+            "Vendor Pricing Negotiation": {
+                "Buyer": "Supplier",
+                "Supplier": "Buyer",
+            },
+
+            "Job Offer Negotiation": {
+                "Candidate": "HR Manager",
+                "HR Manager": "Candidate",
+            },
+
+            "Project Budget Allocation": {
+                "Budget Requester": "Budget Allocator",
+                "Budget Allocator": "Budget Requester",
+            }
+        }
+
+        return (
+            pairs
+            .get(
+                scenario,
+                {}
+            )
+            .get(
+                speaker
+            )
+        )
+
+    # ============================================================
+    # FINAL CONFIRMATION MESSAGE
+    # ============================================================
+
+    def _build_final_confirmation(
+        self,
+        scenario,
+        accepting_speaker,
+        agreement_value
+    ):
+        """
+        Create a final confirmation from the other participant.
+        """
+
+        # ========================================================
+        # VENDOR
+        # ========================================================
+
+        if scenario == "Vendor Pricing Negotiation":
+
+            if accepting_speaker == "Buyer":
+
+                return (
+                    f"We agree to the final price of "
+                    f"₹{agreement_value:,.0f} per unit. "
+                    f"We confirm the order for 100 units "
+                    f"with the agreed terms. "
+                    f"The agreement is confirmed."
+                )
+
+            return (
+                f"We confirm the agreed price of "
+                f"₹{agreement_value:,.0f} per unit "
+                f"for 100 units. "
+                f"We are pleased to finalize the order."
+            )
+
+        # ========================================================
+        # JOB OFFER
+        # ========================================================
+
+        if scenario == "Job Offer Negotiation":
+
+            lpa = (
+                agreement_value / 100000
+            )
+
+            if accepting_speaker == "Candidate":
+
+                return (
+                    f"We agree to the final salary of "
+                    f"₹{lpa:g} LPA. "
+                    f"We confirm the employment offer "
+                    f"on the agreed terms."
+                )
+
+            return (
+                f"We confirm the agreed salary of "
+                f"₹{lpa:g} LPA. "
+                f"We are pleased to finalize the offer."
+            )
+
+        # ========================================================
+        # PROJECT BUDGET
+        # ========================================================
+
+        if scenario == "Project Budget Allocation":
+
+            if accepting_speaker == "Budget Requester":
+
+                return (
+                    f"We agree to allocate "
+                    f"₹{agreement_value:,.0f} "
+                    f"to the project. "
+                    f"As the Budget Allocator, we confirm "
+                    f"that this budget assignment is approved "
+                    f"and the agreement is finalized."
+                )
+
+            return (
+                f"We confirm acceptance of the final budget "
+                f"allocation of "
+                f"₹{agreement_value:,.0f}. "
+                f"We agree to proceed with the project "
+                f"at this allocation."
+            )
+
+        return (
+            "We confirm the agreed terms. "
+            "The negotiation is finalized."
+        )
+
+    # ============================================================
+    # EXPLICIT ACCEPTANCE DETECTION
     # ============================================================
 
     def _is_explicit_acceptance(
@@ -361,19 +827,7 @@ class NegotiationOrchestrator:
         Detect genuine acceptance.
 
         IMPORTANT:
-        Proposal language must NOT be treated as acceptance.
-
-        Example:
-            "Would you consider ₹96,500?"
-        -> False
-
-        Example:
-            "We happily accept your offer of ₹96,500."
-        -> True
-
-        Example:
-            "We confirm our agreement at ₹96,500."
-        -> True
+        Proposal language must NEVER be treated as acceptance.
         """
 
         if not message:
@@ -386,12 +840,9 @@ class NegotiationOrchestrator:
             .split()
         )
 
-        # --------------------------------------------------------
-        # FIRST: PROPOSAL LANGUAGE
-        # --------------------------------------------------------
-        #
-        # These phrases indicate that negotiation is still active.
-        #
+        # ========================================================
+        # PROPOSAL LANGUAGE
+        # ========================================================
 
         proposal_phrases = [
 
@@ -400,249 +851,201 @@ class NegotiationOrchestrator:
             "would you agree",
             "would you consider",
             "could you consider",
+
             "can we meet",
             "could we meet",
+
             "perhaps we can",
             "maybe we can",
+
             "we propose",
             "i propose",
+
             "we suggest",
             "i suggest",
+
             "we could compromise",
             "could we compromise",
+
             "would you be able",
             "can you consider",
             "please consider",
 
             "we are prepared to",
             "we are willing to",
+
             "we can move to",
             "we can adjust to",
+
             "we can offer",
             "we could move to",
             "we could offer",
 
             "would you be willing",
             "would you be prepared",
+
             "could you meet",
             "can you meet",
+
             "shall we meet",
             "let us meet",
 
             "i would propose",
             "i would suggest",
+
             "we would propose",
-            "we would suggest"
+            "we would suggest",
+
+            "can we work with",
+            "could we work with",
+
+            "would you work with",
+
+            "can the allocator",
+            "could the allocator",
+
+            "can the buyer",
+            "could the buyer",
+
+            "can the supplier",
+            "could the supplier",
+
+            "can the candidate",
+            "could the candidate",
+
+            "can hr",
+            "could hr",
+
+            "can we continue",
+            "could we continue",
+
+            "let us continue",
+            "let's continue",
+
+            "we can continue",
+            "we can keep negotiating",
+            "we can continue working"
         ]
 
         if any(
             phrase in text
             for phrase in proposal_phrases
         ):
+
             return False
 
-        # --------------------------------------------------------
-        # EXPLICIT ACCEPTANCE PHRASES
-        # --------------------------------------------------------
+        # ========================================================
+        # DIRECT ACCEPTANCE
+        # ========================================================
 
         acceptance_phrases = [
 
-            # Basic acceptance
-            "we accept",
-            "i accept",
-            "we happily accept",
-            "i happily accept",
-            "we gladly accept",
-            "i gladly accept",
-            "we are happy to accept",
-            "i am happy to accept",
-            "we are pleased to accept",
-            "i am pleased to accept",
+            "we accept your offer",
+            "i accept your offer",
 
-            # Agreement
-            "we agree to",
-            "i agree to",
-            "we agree on",
-            "i agree on",
-            "we agree",
-            "i agree",
+            "we accept the offer",
+            "i accept the offer",
+
+            "we accept your proposal",
+            "i accept your proposal",
+
+            "we accept the proposal",
+            "i accept the proposal",
+
+            "we happily accept your offer",
+            "i happily accept your offer",
+
+            "we gladly accept your offer",
+            "i gladly accept your offer",
+
+            "we are happy to accept your offer",
+            "i am happy to accept your offer",
+
+            "we are pleased to accept your offer",
+            "i am pleased to accept your offer",
+
+            "we agree to your offer",
+            "i agree to your offer",
+
+            "we agree to the offer",
+            "i agree to the offer",
+
+            "we agree to your proposal",
+            "i agree to your proposal",
+
+            "we agree to the proposal",
+            "i agree to the proposal",
 
             "we confirm the agreement",
             "i confirm the agreement",
+
             "we confirm our agreement",
             "i confirm our agreement",
 
             "we confirm the deal",
             "i confirm the deal",
+
             "we confirm our deal",
             "i confirm our deal",
 
-            # Finalization
-            "we can finalize the agreement",
-            "i can finalize the agreement",
-            "we are ready to finalize",
-            "i am ready to finalize",
-            "we will finalize the agreement",
-            "i will finalize the agreement",
-
-            "we are happy to finalize",
-            "i am happy to finalize",
-
-            "we are pleased to finalize",
-            "i am pleased to finalize",
-
-            "we can finalize",
-            "i can finalize",
-            "we will finalize",
-            "i will finalize",
-
-            # Explicit completion
             "we have an agreement",
             "i have an agreement",
+
             "we have reached an agreement",
             "i have reached an agreement",
 
             "agreement is confirmed",
             "our agreement is confirmed",
+
             "the agreement is confirmed",
 
             "deal is confirmed",
             "the deal is confirmed",
-            "deal confirmed",
 
-            "we are pleased to confirm",
-            "i am pleased to confirm",
-
-            "we are delighted to confirm",
-            "i am delighted to confirm",
-
-            "we are delighted to have reached an agreement",
-            "i am delighted to have reached an agreement",
-
-            "we are delighted to have successfully concluded",
-            "we have successfully concluded the agreement",
-
-            # Final acceptance wording
-            "that works for us",
-            "that works for me",
-            "this works for us",
-            "this works for me",
-
-            "we accept your offer",
-            "i accept your offer",
-            "we happily accept your offer",
-            "i happily accept your offer",
-
-            "we accept your proposal",
-            "i accept your proposal",
-
-            "we agree to your offer",
-            "i agree to your offer",
-
-            "we agree to your proposal",
-            "i agree to your proposal",
-
-            "we are happy with this offer",
-            "i am happy with this offer",
-
-            "we are satisfied with this offer",
-            "i am satisfied with this offer"
+            "deal confirmed"
         ]
-
-        # --------------------------------------------------------
-        # DIRECT PHRASE MATCH
-        # --------------------------------------------------------
 
         if any(
             phrase in text
             for phrase in acceptance_phrases
         ):
+
             return True
 
-        # --------------------------------------------------------
-        # STRONG ACCEPTANCE COMBINATIONS
-        # --------------------------------------------------------
-        #
-        # Helps catch natural LLM language such as:
-        #
-        # "We happily accept your offer..."
-        # "We gladly accept..."
-        # "We confirm that we have an agreement..."
-        #
+        # ========================================================
+        # STRICT ACCEPTANCE WORD CHECK
+        # ========================================================
 
-        acceptance_words = [
-            "accept",
-            "accepted",
-            "acceptance"
-        ]
+        if "accept" in text:
 
-        confirmation_words = [
-            "confirm",
-            "confirmed",
-            "confirmation"
-        ]
+            if (
+                "offer" in text
+                or "proposal" in text
+                or "terms" in text
+                or "agreement" in text
+                or "deal" in text
+            ):
 
-        agreement_words = [
-            "agreement",
-            "deal",
-            "final agreement"
-        ]
+                return True
 
-        final_words = [
-            "finalize",
-            "finalised",
-            "finalized",
-            "conclude",
-            "concluded",
-            "conclusion"
-        ]
+        if "confirmed" in text:
 
-        has_acceptance_word = any(
-            word in text
-            for word in acceptance_words
-        )
+            if (
+                "agreement" in text
+                or "deal" in text
+                or "offer" in text
+                or "terms" in text
+            ):
 
-        has_confirmation_word = any(
-            word in text
-            for word in confirmation_words
-        )
+                return True
 
-        has_agreement_word = any(
-            word in text
-            for word in agreement_words
-        )
-
-        has_final_word = any(
-            word in text
-            for word in final_words
-        )
-
-        # Strong acceptance:
-        #
-        # accept + offer/proposal/agreement/deal
-        #
-        if has_acceptance_word and (
-            "offer" in text
-            or "proposal" in text
-            or has_agreement_word
-            or "terms" in text
+        if (
+            "reached"
+            in text
+            and "agreement"
+            in text
         ):
-            return True
 
-        # confirm + agreement/deal
-        if has_confirmation_word and (
-            has_agreement_word
-            or "terms" in text
-            or "offer" in text
-        ):
-            return True
-
-        # finalize/conclude + agreement/deal
-        if has_final_word and (
-            has_agreement_word
-            or "terms" in text
-            or "deal" in text
-        ):
             return True
 
         return False
@@ -660,7 +1063,8 @@ class NegotiationOrchestrator:
         messages = [
             msg
             for msg in conversation
-            if msg["speaker"] in valid_speakers
+            if msg.get("speaker")
+            in valid_speakers
         ]
 
         if len(messages) < 8:
@@ -676,13 +1080,20 @@ class NegotiationOrchestrator:
         for msg in recent:
 
             text = (
-                msg["message"]
+                str(
+                    msg.get(
+                        "message",
+                        ""
+                    )
+                )
                 .lower()
                 .strip()
             )
 
             normalized.append(
-                " ".join(text.split())
+                " ".join(
+                    text.split()
+                )
             )
 
         unique_count = len(
@@ -693,6 +1104,7 @@ class NegotiationOrchestrator:
             return True
 
         deadlock_phrases = [
+
             "cannot compromise further",
             "cannot move further",
             "no further movement",
@@ -708,18 +1120,24 @@ class NegotiationOrchestrator:
 
         for msg in recent:
 
-            text = msg["message"].lower()
+            text = str(
+                msg.get(
+                    "message",
+                    ""
+                )
+            ).lower()
 
             if any(
                 phrase in text
                 for phrase in deadlock_phrases
             ):
+
                 deadlock_count += 1
 
         return deadlock_count >= 2
 
     # ============================================================
-    # MARK AGREEMENT AND STOP
+    # COMPLETE AGREEMENT
     # ============================================================
 
     def _complete_agreement(
@@ -730,7 +1148,7 @@ class NegotiationOrchestrator:
     ):
 
         # ========================================================
-        # SAVE SYSTEM COMPLETION MESSAGE
+        # SYSTEM COMPLETION MESSAGE
         # ========================================================
 
         self.conversation_manager.add_message(
@@ -758,18 +1176,30 @@ class NegotiationOrchestrator:
             )
         )
 
+        session = (
+            self.session_manager.get_session(
+                session_id
+            )
+        )
+
+        if session is None:
+            return {
+                "error": "Invalid session ID"
+            }
+
         valid_speakers = (
             self._get_speaker_names(
-                self.session_manager
-                .get_session(session_id)
-                .get("scenario")
+                session.get(
+                    "scenario"
+                )
             )
         )
 
         turn_count = sum(
             1
             for msg in conversation
-            if msg.get("speaker") in valid_speakers
+            if msg.get("speaker")
+            in valid_speakers
         )
 
         rounds = turn_count // 2
@@ -785,7 +1215,7 @@ class NegotiationOrchestrator:
         )
 
         # ========================================================
-        # SAVE REPORT TO DATABASE
+        # SAVE REPORT
         # ========================================================
 
         self._save_completed_negotiation(
@@ -804,7 +1234,6 @@ class NegotiationOrchestrator:
             "round": rounds
         }
 
-
     # ============================================================
     # GENERATE REPORT
     # ============================================================
@@ -813,10 +1242,6 @@ class NegotiationOrchestrator:
         self,
         session_id
     ):
-
-        # ========================================================
-        # GET SESSION
-        # ========================================================
 
         session = (
             self.session_manager.get_session(
@@ -830,10 +1255,6 @@ class NegotiationOrchestrator:
                 "error": "Invalid session ID"
             }
 
-        # ========================================================
-        # GET CONVERSATION
-        # ========================================================
-
         conversation = (
             self.conversation_manager.get_conversation(
                 session_id
@@ -842,10 +1263,6 @@ class NegotiationOrchestrator:
 
         if conversation is None:
             conversation = []
-
-        # ========================================================
-        # SESSION DATA
-        # ========================================================
 
         scenario = session.get(
             "scenario",
@@ -865,27 +1282,16 @@ class NegotiationOrchestrator:
             "agent2_config"
         )
 
-        # ========================================================
-        # GENERATE REPORT
-        # ========================================================
-
-        report = self.report_generator.generate_report(
-
-            session_id=session_id,
-
-            conversation=conversation,
-
-            status=status,
-
-            scenario=scenario,
-
-            agent1_config=agent1_config,
-
-            agent2_config=agent2_config
+        return (
+            self.report_generator.generate_report(
+                session_id=session_id,
+                conversation=conversation,
+                status=status,
+                scenario=scenario,
+                agent1_config=agent1_config,
+                agent2_config=agent2_config
+            )
         )
-
-        return report
-
 
     # ============================================================
     # SAVE COMPLETED NEGOTIATION
@@ -914,50 +1320,191 @@ class NegotiationOrchestrator:
         if conversation is None:
             conversation = []
 
-        report = self.report_generator.generate_report(
-
-            session_id=session_id,
-
-            conversation=conversation,
-
-            status=session.get(
-                "status",
-                "in_progress"
-            ),
-
-            scenario=session.get(
-                "scenario",
-                ""
-            ),
-
-            agent1_config=session.get(
-                "agent1_config"
-            ),
-
-            agent2_config=session.get(
-                "agent2_config"
+        report = (
+            self.report_generator.generate_report(
+                session_id=session_id,
+                conversation=conversation,
+                status=session.get(
+                    "status",
+                    "in_progress"
+                ),
+                scenario=session.get(
+                    "scenario",
+                    ""
+                ),
+                agent1_config=session.get(
+                    "agent1_config"
+                ),
+                agent2_config=session.get(
+                    "agent2_config"
+                )
             )
         )
 
         return (
             self.session_manager
             .save_completed_session(
-
                 session_id=session_id,
-
                 negotiation_score=report.get(
                     "negotiation_score"
                 ),
-
                 score_breakdown=report.get(
                     "score_breakdown"
                 ),
-
                 summary=report.get(
                     "summary"
                 )
             )
         )
+
+    # ============================================================
+    # HANDLE ACCEPTANCE
+    # ============================================================
+
+    def _handle_ai_acceptance(
+        self,
+        session_id,
+        session,
+        conversation,
+        ai_speaker,
+        ai_reply,
+        valid_speakers,
+        max_rounds,
+        scenario
+    ):
+        """
+        Handle an AI acceptance.
+
+        An explicit acceptance only becomes a real agreement if
+        its monetary value is valid for BOTH sides.
+        """
+
+        if not self._is_explicit_acceptance(
+            ai_reply
+        ):
+
+            return None
+
+        # --------------------------------------------------------
+        # Try to get the accepted value from the acceptance text.
+        # --------------------------------------------------------
+
+        agreement_value = (
+            self._extract_last_money_value(
+                ai_reply
+            )
+        )
+
+        # --------------------------------------------------------
+        # If the AI says "I accept your offer" without repeating
+        # the number, use the latest offer from the other side.
+        # --------------------------------------------------------
+
+        if agreement_value is None:
+
+            opposite_speaker = (
+                self._get_opposite_speaker(
+                    scenario,
+                    ai_speaker
+                )
+            )
+
+            agreement_value = (
+                self._get_last_offer_from_speaker(
+                    conversation,
+                    opposite_speaker
+                )
+            )
+
+        # --------------------------------------------------------
+        # VALID AGREEMENT
+        # --------------------------------------------------------
+
+        if (
+            agreement_value is not None
+            and self._is_valid_agreement_value(
+                session,
+                agreement_value
+            )
+        ):
+
+            confirmation_speaker = (
+                self._get_opposite_speaker(
+                    scenario,
+                    ai_speaker
+                )
+            )
+
+            confirmation_message = (
+                self._build_final_confirmation(
+                    scenario,
+                    ai_speaker,
+                    agreement_value
+                )
+            )
+
+            self.conversation_manager.add_message(
+                session_id,
+                confirmation_speaker,
+                confirmation_message
+            )
+
+            return self._complete_agreement(
+                session_id,
+                confirmation_speaker,
+                confirmation_message
+            )
+
+        # --------------------------------------------------------
+        # INVALID ACCEPTANCE
+        # --------------------------------------------------------
+
+        boundaries = (
+            self._get_agreement_boundaries(
+                session
+            )
+        )
+
+        lower_bound = (
+            boundaries.get(
+                "lower_bound"
+            )
+        )
+
+        upper_bound = (
+            boundaries.get(
+                "upper_bound"
+            )
+        )
+
+        self.conversation_manager.add_message(
+            session_id,
+            "System",
+            (
+                "The proposed acceptance is outside "
+                "the configured negotiation boundaries. "
+                "Negotiation will continue."
+            )
+        )
+
+        turn_count = sum(
+            1
+            for msg in conversation
+            if msg.get("speaker")
+            in valid_speakers
+        )
+
+        return {
+            "session_id": session_id,
+            "status": "in_progress",
+            "speaker": ai_speaker,
+            "message": ai_reply,
+            "agreement_valid": False,
+            "lower_bound": lower_bound,
+            "upper_bound": upper_bound,
+            "round": turn_count // 2,
+            "max_rounds": max_rounds
+        }
 
     # ============================================================
     # SINGLE AI TURN
@@ -990,7 +1537,9 @@ class NegotiationOrchestrator:
         # ALREADY COMPLETED
         # ========================================================
 
-        if session.get("status") != "in_progress":
+        if session.get(
+            "status"
+        ) != "in_progress":
 
             return {
                 "status": session["status"],
@@ -1024,12 +1573,11 @@ class NegotiationOrchestrator:
             )
 
             conversation = (
-                self.conversation_manager
-                .get_conversation(session_id)
+                self.conversation_manager.get_conversation(
+                    session_id
+                )
             )
 
-            # Opening message is the first negotiation turn.
-            # Return immediately so the frontend can display it.
             opening_message = conversation[-1]
 
             return {
@@ -1054,7 +1602,9 @@ class NegotiationOrchestrator:
         negotiation_messages = [
             msg
             for msg in conversation
-            if msg["speaker"] in valid_speakers
+            if msg.get(
+                "speaker"
+            ) in valid_speakers
         ]
 
         last_speaker = (
@@ -1164,31 +1714,49 @@ class NegotiationOrchestrator:
         )
 
         # ========================================================
-        # EXPLICIT AGREEMENT
+        # REFRESH CONVERSATION
+        # ========================================================
+
+        conversation = (
+            self.conversation_manager.get_conversation(
+                session_id
+            )
+        )
+
+        # ========================================================
+        # EXPLICIT ACCEPTANCE
         # ========================================================
 
         if self._is_explicit_acceptance(
             ai_reply
         ):
 
-            return self._complete_agreement(
-                session_id,
-                ai_speaker,
-                ai_reply
+            acceptance_result = (
+                self._handle_ai_acceptance(
+                    session_id=session_id,
+                    session=session,
+                    conversation=conversation,
+                    ai_speaker=ai_speaker,
+                    ai_reply=ai_reply,
+                    valid_speakers=valid_speakers,
+                    max_rounds=max_rounds,
+                    scenario=scenario
+                )
             )
 
-        # ========================================================
-        # REFRESH
-        # ========================================================
+            if acceptance_result is not None:
 
-        conversation = (
-            self.conversation_manager
-            .get_conversation(session_id)
-        )
+                return acceptance_result
 
         # ========================================================
         # DEADLOCK
         # ========================================================
+
+        conversation = (
+            self.conversation_manager.get_conversation(
+                session_id
+            )
+        )
 
         if self._is_repeated_deadlock(
             conversation,
@@ -1221,11 +1789,12 @@ class NegotiationOrchestrator:
         # COUNT TURNS
         # ========================================================
 
-        turn_count = len([
-            msg
+        turn_count = sum(
+            1
             for msg in conversation
-            if msg["speaker"] in valid_speakers
-        ])
+            if msg.get("speaker")
+            in valid_speakers
+        )
 
         completed_rounds = (
             turn_count // 2
@@ -1308,11 +1877,14 @@ class NegotiationOrchestrator:
         # ALREADY COMPLETE
         # ========================================================
 
-        if session.get("status") != "in_progress":
+        if session.get(
+            "status"
+        ) != "in_progress":
 
             conversation = (
-                self.conversation_manager
-                .get_conversation(session_id)
+                self.conversation_manager.get_conversation(
+                    session_id
+                )
             )
 
             return {
@@ -1328,8 +1900,9 @@ class NegotiationOrchestrator:
         # ========================================================
 
         conversation = (
-            self.conversation_manager
-            .get_conversation(session_id)
+            self.conversation_manager.get_conversation(
+                session_id
+            )
         )
 
         if len(conversation) == 0:
@@ -1345,7 +1918,9 @@ class NegotiationOrchestrator:
         # STRICT ZIG-ZAG LOOP
         # ========================================================
 
-        for _ in range(max_rounds * 2):
+        for _ in range(
+            max_rounds * 2
+        ):
 
             result = (
                 self.simulate_next_turn(
@@ -1357,16 +1932,13 @@ class NegotiationOrchestrator:
                 "status"
             )
 
-            # ----------------------------------------------------
-            # STOP IMMEDIATELY
-            # ----------------------------------------------------
-
             if status in [
                 "agreement_reached",
                 "deadlock",
                 "max_rounds_reached",
                 "quota_exceeded"
             ]:
+
                 break
 
             if status != "in_progress":
@@ -1383,15 +1955,18 @@ class NegotiationOrchestrator:
         )
 
         conversation = (
-            self.conversation_manager
-            .get_conversation(session_id)
+            self.conversation_manager.get_conversation(
+                session_id
+            )
         )
 
         # ========================================================
         # SAFETY FALLBACK
         # ========================================================
 
-        if session.get("status") == "in_progress":
+        if session.get(
+            "status"
+        ) == "in_progress":
 
             self.conversation_manager.add_message(
                 session_id,
@@ -1404,7 +1979,12 @@ class NegotiationOrchestrator:
 
             self.session_manager.update_status(
                 session_id,
-                "max_rounds_reached"
+                "max_rounds_reached",
+                rounds=max_rounds
+            )
+
+            self._save_completed_negotiation(
+                session_id
             )
 
             session = (
@@ -1446,7 +2026,9 @@ class NegotiationOrchestrator:
         # DO NOT ACCEPT AFTER COMPLETION
         # ========================================================
 
-        if session.get("status") != "in_progress":
+        if session.get(
+            "status"
+        ) != "in_progress":
 
             return {
                 "session_id": request.session_id,
@@ -1475,6 +2057,12 @@ class NegotiationOrchestrator:
         scenario = session["scenario"]
         max_rounds = session["max_rounds"]
 
+        valid_speakers = (
+            self._get_speaker_names(
+                scenario
+            )
+        )
+
         # ========================================================
         # HUMAN AGREEMENT
         # ========================================================
@@ -1483,85 +2071,114 @@ class NegotiationOrchestrator:
             request.message
         ):
 
-            if scenario == "Vendor Pricing Negotiation":
-
-                ai_speaker = (
-                    "Supplier"
-                    if request.speaker == "Buyer"
-                    else "Buyer"
-                )
-
-            elif scenario == "Job Offer Negotiation":
-
-                ai_speaker = (
-                    "HR Manager"
-                    if request.speaker == "Candidate"
-                    else "Candidate"
-                )
-
-            elif scenario == "Project Budget Allocation":
-
-                ai_speaker = (
-                    "Budget Allocator"
-                    if request.speaker
-                    == "Budget Requester"
-                    else "Budget Requester"
-                )
-
-            else:
-
-                ai_speaker = "AI"
-
-            final_reply = (
-                "Thank you. We are pleased to confirm "
-                "that we have reached an agreement."
-            )
-
-            self.conversation_manager.add_message(
-                request.session_id,
-                ai_speaker,
-                final_reply
-            )
-
-            self.session_manager.update_status(
-                request.session_id,
-                "agreement_reached"
-            )
-
-            valid_speakers = (
-                self._get_speaker_names(
-                    scenario
+            agreement_value = (
+                self._extract_last_money_value(
+                    request.message
                 )
             )
 
-            current_round = (
-                sum(
-                    1
-                    for message in conversation
-                    if message["speaker"]
-                    in valid_speakers
+            # If the human says "I accept your offer"
+            # without repeating the number, use the latest
+            # offer made by the opposite participant.
+
+            if agreement_value is None:
+
+                opposite_speaker = (
+                    self._get_opposite_speaker(
+                        scenario,
+                        request.speaker
+                    )
                 )
-                // 2
+
+                agreement_value = (
+                    self._get_last_offer_from_speaker(
+                        conversation,
+                        opposite_speaker
+                    )
+                )
+
+            # ----------------------------------------------------
+            # VALID AGREEMENT
+            # ----------------------------------------------------
+
+            if (
+                agreement_value is not None
+                and self._is_valid_agreement_value(
+                    session,
+                    agreement_value
+                )
+            ):
+
+                confirmation_speaker = (
+                    self._get_opposite_speaker(
+                        scenario,
+                        request.speaker
+                    )
+                )
+
+                confirmation_message = (
+                    self._build_final_confirmation(
+                        scenario,
+                        request.speaker,
+                        agreement_value
+                    )
+                )
+
+                self.conversation_manager.add_message(
+                    request.session_id,
+                    confirmation_speaker,
+                    confirmation_message
+                )
+
+                return self._complete_agreement(
+                    request.session_id,
+                    confirmation_speaker,
+                    confirmation_message
+                )
+
+            # ----------------------------------------------------
+            # INVALID HUMAN ACCEPTANCE
+            # ----------------------------------------------------
+
+            boundaries = (
+                self._get_agreement_boundaries(
+                    session
+                )
             )
 
             return {
                 "session_id": request.session_id,
-                "status": "agreement_reached",
-                "speaker": ai_speaker,
-                "message": final_reply,
-                "round": current_round,
+                "status": "in_progress",
+                "speaker": request.speaker,
+                "message": request.message,
+                "agreement_valid": False,
+                "lower_bound": boundaries.get(
+                    "lower_bound"
+                ),
+                "upper_bound": boundaries.get(
+                    "upper_bound"
+                ),
+                "warning": (
+                    "The accepted value is outside the "
+                    "configured walk-away boundaries. "
+                    "Negotiation must continue."
+                ),
+                "round": (
+                    sum(
+                        1
+                        for message in conversation
+                        if message.get(
+                            "speaker"
+                        ) in valid_speakers
+                    )
+                    // 2
+                ),
                 "max_rounds": max_rounds
             }
 
         # ========================================================
         # DEADLOCK
         # ========================================================
-
-        valid_speakers = (
-            self._get_speaker_names(
-                scenario
-            )
-        )
 
         if self._is_repeated_deadlock(
             conversation,
@@ -1571,6 +2188,10 @@ class NegotiationOrchestrator:
             self.session_manager.update_status(
                 request.session_id,
                 "deadlock"
+            )
+
+            self._save_completed_negotiation(
+                request.session_id
             )
 
             return {
@@ -1684,40 +2305,53 @@ class NegotiationOrchestrator:
         )
 
         # ========================================================
-        # EXPLICIT AI AGREEMENT
+        # AI AGREEMENT
         # ========================================================
+
+        conversation = (
+            self.conversation_manager.get_conversation(
+                request.session_id
+            )
+        )
 
         if self._is_explicit_acceptance(
             ai_reply
         ):
 
-            return self._complete_agreement(
-                request.session_id,
-                ai_speaker,
-                ai_reply
+            acceptance_result = (
+                self._handle_ai_acceptance(
+                    session_id=request.session_id,
+                    session=session,
+                    conversation=conversation,
+                    ai_speaker=ai_speaker,
+                    ai_reply=ai_reply,
+                    valid_speakers=valid_speakers,
+                    max_rounds=max_rounds,
+                    scenario=scenario
+                )
             )
 
-        # ========================================================
-        # REFRESH
-        # ========================================================
+            if acceptance_result is not None:
 
-        conversation = (
-            self.conversation_manager
-            .get_conversation(
-                request.session_id
-            )
-        )
+                return acceptance_result
 
         # ========================================================
         # MAX ROUNDS
         # ========================================================
 
+        conversation = (
+            self.conversation_manager.get_conversation(
+                request.session_id
+            )
+        )
+
         current_round = (
             sum(
                 1
                 for message in conversation
-                if message["speaker"]
-                in valid_speakers
+                if message.get(
+                    "speaker"
+                ) in valid_speakers
             )
             // 2
         )
@@ -1726,7 +2360,8 @@ class NegotiationOrchestrator:
 
             self.session_manager.update_status(
                 request.session_id,
-                "max_rounds_reached"
+                "max_rounds_reached",
+                rounds=current_round
             )
 
             self.conversation_manager.add_message(
@@ -1737,6 +2372,10 @@ class NegotiationOrchestrator:
                     f"reaching the maximum of "
                     f"{max_rounds} rounds."
                 )
+            )
+
+            self._save_completed_negotiation(
+                request.session_id
             )
 
             return {

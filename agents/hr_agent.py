@@ -3,6 +3,32 @@ from llm.prompt_builder import build_prompt
 from llm.response_parser import parse_response
 
 
+def get_config_value(
+    config,
+    key,
+    default=None
+):
+    """
+    Read a configuration value from either a dictionary
+    or an object/Pydantic model.
+    """
+
+    if config is None:
+        return default
+
+    if isinstance(config, dict):
+        return config.get(
+            key,
+            default
+        )
+
+    return getattr(
+        config,
+        key,
+        default
+    )
+
+
 class HRAgent:
 
     def __init__(self):
@@ -16,13 +42,17 @@ class HRAgent:
 
         self.constraints = (
             "Do not exceed the approved salary budget. "
+            "Never accept or offer a salary above your configured "
+            "maximum approved salary. "
+            "If the candidate's request exceeds your reservation price, "
+            "continue negotiating. "
             "Make reasonable salary counteroffers based on the candidate's "
             "latest request. "
             "Do not repeat the same salary offer multiple times. "
             "Be professional and respectful. "
             "Do not introduce unrelated topics. "
             "If the candidate's request reaches a fair and affordable "
-            "level, accept explicitly."
+            "level within your acceptable range, accept explicitly."
         )
 
     def negotiate(
@@ -36,34 +66,32 @@ class HRAgent:
 
         if agent_config:
 
-            strategy = getattr(
+            strategy = get_config_value(
                 agent_config,
-                "strategy",
-                None
+                "strategy"
             )
 
-            starting_target = getattr(
+            starting_target = get_config_value(
                 agent_config,
-                "starting_target",
-                None
+                "starting_target"
             )
 
-            reservation_price = getattr(
+            reservation_price = get_config_value(
                 agent_config,
-                "reservation_price",
-                None
+                "reservation_price"
             )
 
-            instructions = getattr(
+            instructions = get_config_value(
                 agent_config,
-                "instructions",
-                None
+                "instructions"
             )
 
             dynamic_constraints += (
                 f" Negotiation strategy: {strategy}. "
                 f"Starting salary offer: {starting_target}. "
                 f"Maximum approved salary: {reservation_price}. "
+                f"Never accept or offer a salary above "
+                f"{reservation_price}. "
                 f"Custom instructions: {instructions}."
             )
 
@@ -76,6 +104,10 @@ class HRAgent:
             agent_config=agent_config
         )
 
-        response = generate_response(prompt)
+        response = generate_response(
+            prompt
+        )
 
-        return parse_response(response)
+        return parse_response(
+            response
+        )

@@ -3,9 +3,36 @@ from llm.prompt_builder import build_prompt
 from llm.response_parser import parse_response
 
 
+def get_config_value(
+    config,
+    key,
+    default=None
+):
+    """
+    Read a configuration value from either a dictionary
+    or an object/Pydantic model.
+    """
+
+    if config is None:
+        return default
+
+    if isinstance(config, dict):
+        return config.get(
+            key,
+            default
+        )
+
+    return getattr(
+        config,
+        key,
+        default
+    )
+
+
 class BudgetAgent:
 
     def __init__(self):
+
         self.role = "Budget Allocator"
 
         self.goal = (
@@ -15,6 +42,10 @@ class BudgetAgent:
 
         self.constraints = (
             "Do not approve a budget above the available project budget. "
+            "Never accept or allocate a value above your configured maximum "
+            "acceptable allocation. "
+            "If the Budget Requester's demand exceeds your reservation price, "
+            "continue negotiating. "
             "Evaluate each request against the project's needs. "
             "Make reasonable counteroffers rather than rejecting proposals "
             "without explanation. "
@@ -35,34 +66,33 @@ class BudgetAgent:
 
         if agent_config:
 
-            strategy = getattr(
+            strategy = get_config_value(
                 agent_config,
-                "strategy",
-                None
+                "strategy"
             )
 
-            starting_target = getattr(
+            starting_target = get_config_value(
                 agent_config,
-                "starting_target",
-                None
+                "starting_target"
             )
 
-            reservation_price = getattr(
+            reservation_price = get_config_value(
                 agent_config,
-                "reservation_price",
-                None
+                "reservation_price"
             )
 
-            instructions = getattr(
+            instructions = get_config_value(
                 agent_config,
-                "instructions",
-                None
+                "instructions"
             )
 
             dynamic_constraints += (
                 f" Negotiation strategy: {strategy}. "
                 f"Starting target: {starting_target}. "
-                f"Maximum acceptable allocation: {reservation_price}. "
+                f"Maximum acceptable allocation: "
+                f"{reservation_price}. "
+                f"Never accept or allocate a value above "
+                f"{reservation_price}. "
                 f"Custom instructions: {instructions}."
             )
 
@@ -75,6 +105,10 @@ class BudgetAgent:
             agent_config=agent_config
         )
 
-        response = generate_response(prompt)
+        response = generate_response(
+            prompt
+        )
 
-        return parse_response(response)
+        return parse_response(
+            response
+        )
