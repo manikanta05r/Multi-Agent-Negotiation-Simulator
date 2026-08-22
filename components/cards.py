@@ -33,8 +33,10 @@ def feature_card(title, description, icon, button_text="Start Scenario"):
 
         st.divider()
 
-        st.button(
+        clicked = st.button(
             button_text,
             use_container_width=True,
             key=title
         )
+
+    return clicked

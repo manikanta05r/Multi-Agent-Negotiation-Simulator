@@ -43,6 +43,7 @@ p{
     font-size:16px;
 }
 
+
 /* =========================================
    Buttons
 ========================================= */
@@ -178,4 +179,366 @@ hr{
 
     border-radius:10px;
 
+}
+/* ============================================================
+   AGENT CONFIGURATION CARDS
+   Same visual language as Login / Create Account
+============================================================ */
+
+div[data-testid="stVerticalBlockBorderWrapper"] {
+    background: rgba(255, 255, 255, 0.80) !important;
+
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+
+    border: 1px solid rgba(255, 255, 255, 0.65) !important;
+
+    border-radius: 2rem !important;
+
+    box-shadow:
+        0 20px 45px -15px rgba(0, 0, 0, 0.08);
+
+    transition:
+        transform 0.25s ease,
+        box-shadow 0.25s ease,
+        border-color 0.25s ease;
+}
+
+
+/* ============================================================
+   CARD HOVER
+============================================================ */
+
+div[data-testid="stVerticalBlockBorderWrapper"]:hover {
+
+    transform: translateY(-3px);
+
+    box-shadow:
+        0 25px 50px -15px rgba(0, 0, 0, 0.11);
+
+    border-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+
+/* ============================================================
+   AGENT CARD HEADINGS
+============================================================ */
+
+div[data-testid="stVerticalBlockBorderWrapper"] h3,
+div[data-testid="stVerticalBlockBorderWrapper"] h2 {
+
+    font-family:
+        'Space Grotesk',
+        sans-serif !important;
+
+    color: #0f172a !important;
+
+    font-weight: 700 !important;
+}
+
+
+/* ============================================================
+   AGENT CARD TEXT
+============================================================ */
+
+div[data-testid="stVerticalBlockBorderWrapper"] p {
+
+    color: #64748b;
+}
+
+
+/* ============================================================
+   FORM / INPUT LABELS
+============================================================ */
+
+.stTextInput label,
+.stSelectbox label,
+.stNumberInput label,
+.stTextArea label {
+
+    font-size: 11px !important;
+
+    font-weight: 700 !important;
+
+    color: #94a3b8 !important;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.08em;
+}
+
+
+/* ============================================================
+   TEXT INPUTS
+============================================================ */
+
+div[data-baseweb="input"] {
+
+    border-radius: 16px !important;
+
+    min-height: 52px !important;
+
+    background:
+        rgba(248, 250, 252, 0.60) !important;
+
+    border:
+        1px solid #e2e8f0 !important;
+
+    transition:
+        all 0.2s ease;
+}
+
+
+div[data-baseweb="input"] input {
+
+    font-size: 14px !important;
+
+    font-weight: 600 !important;
+
+    color: #0f172a !important;
+}
+
+
+/* ============================================================
+   INPUT FOCUS
+============================================================ */
+
+div[data-baseweb="input"]:focus-within {
+
+    border:
+        1px solid #3b82f6 !important;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(59, 130, 246, 0.08) !important;
+
+    background:
+        #ffffff !important;
+}
+
+
+/* ============================================================
+   SELECTBOX
+============================================================ */
+
+div[data-baseweb="select"] > div {
+
+    min-height: 52px !important;
+
+    border-radius: 16px !important;
+
+    background:
+        rgba(248, 250, 252, 0.60) !important;
+
+    border:
+        1px solid #e2e8f0 !important;
+
+    transition: all 0.2s ease;
+}
+
+
+div[data-baseweb="select"] > div:focus-within {
+
+    border-color:
+        #3b82f6 !important;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(59, 130, 246, 0.08) !important;
+}
+
+
+/* ============================================================
+   NUMBER INPUT
+============================================================ */
+
+div[data-testid="stNumberInput"] {
+
+    border-radius: 16px;
+}
+
+
+div[data-testid="stNumberInput"] div[data-baseweb="input"] {
+
+    min-height: 52px !important;
+}
+
+
+/* ============================================================
+   TEXT AREA
+============================================================ */
+
+div[data-testid="stTextArea"] textarea {
+
+    border-radius: 16px !important;
+
+    background:
+        rgba(248, 250, 252, 0.60) !important;
+
+    border:
+        1px solid #e2e8f0 !important;
+
+    font-size: 14px !important;
+
+    font-weight: 500 !important;
+
+    color: #0f172a !important;
+
+    transition: all 0.2s ease;
+}
+
+
+div[data-testid="stTextArea"] textarea:focus {
+
+    border:
+        1px solid #3b82f6 !important;
+
+    box-shadow:
+        0 0 0 4px
+        rgba(59, 130, 246, 0.08) !important;
+
+    background:
+        #ffffff !important;
+}
+
+
+/* ============================================================
+   AGENT CARD DIVIDER
+============================================================ */
+
+div[data-testid="stVerticalBlockBorderWrapper"] hr {
+
+    border-color:
+        #e2e8f0 !important;
+
+    margin-top: 1rem;
+
+    margin-bottom: 1rem;
+}
+
+
+/* ============================================================
+   CAPTIONS
+============================================================ */
+
+div[data-testid="stVerticalBlockBorderWrapper"]
+.stCaption,
+div[data-testid="stVerticalBlockBorderWrapper"]
+small {
+
+    color: #64748b !important;
+
+    font-size: 12px !important;
+
+    line-height: 1.5;
+}
+
+
+/* ============================================================
+   PRIMARY BUTTONS
+============================================================ */
+
+div.stButton > button {
+
+    border-radius: 16px !important;
+
+    border: none !important;
+
+    font-weight: 700 !important;
+
+    font-size: 0.95rem !important;
+
+    padding:
+        0.85rem 1rem !important;
+
+    color: white !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #3b82f6 0%,
+            #2dd4bf 100%
+        ) !important;
+
+    box-shadow:
+        0 10px 20px -8px
+        rgba(59, 130, 246, 0.40);
+
+    transition:
+        all 0.3s
+        cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
+div.stButton > button:hover {
+
+    transform:
+        translateY(-2px);
+
+    box-shadow:
+        0 12px 24px -6px
+        rgba(59, 130, 246, 0.40);
+
+    filter:
+        brightness(1.05);
+
+    color: white !important;
+}
+
+
+/* ============================================================
+   PRIMARY START NEGOTIATION BUTTON
+============================================================ */
+
+button[kind="primary"] {
+
+    border-radius: 16px !important;
+
+    background:
+        linear-gradient(
+            135deg,
+            #3b82f6 0%,
+            #2dd4bf 100%
+        ) !important;
+
+    box-shadow:
+        0 12px 24px -8px
+        rgba(59, 130, 246, 0.40) !important;
+}
+
+
+/* ============================================================
+   PAGE HEADINGS
+============================================================ */
+
+h1,
+h2,
+h3 {
+
+    font-family:
+        'Space Grotesk',
+        sans-serif !important;
+
+    color: #0f172a !important;
+}
+
+
+/* ============================================================
+   SUBTEXT
+============================================================ */
+
+.stCaption {
+
+    color: #64748b !important;
+}
+
+
+/* ============================================================
+   DIVIDERS
+============================================================ */
+
+hr {
+
+    border-color:
+        #e2e8f0 !important;
 }
